@@ -10,11 +10,11 @@ export const get_evm_address = async (
 ): Promise<Address> => {
   // Use the public client to get the balance for the provided address.
   // This returns a BigInt representing the balance in tinybars.
-  const addresses = await client.getAddresses();
+  const address = await client.account?.address;
 
-  if (addresses.length === 0) {
+  if (!address) {
     throw new Error("No addresses found");
   }
 
-  return addresses[0];
+  return address;
 };

@@ -3,9 +3,9 @@ import type { Address } from "viem";
 
 // Example: Minimal ABI + bytecode from your compiled contract
 import { ERC20_ABI } from "../utils/constants/erc20abi";
-import { erc20Bytecode } from "../utils/constants/erc20bytecode";
+import { ERC20_BYTECODE } from "../utils/constants/erc20bytcode";
 
-interface CreateFungibleTokenProps {
+export interface CreateFungibleTokenProps {
   name: string;
   symbol: string;
   decimals: number;
@@ -19,18 +19,16 @@ interface CreateFungibleTokenProps {
  * @returns The newly deployed token's contract address.
  */
 export async function createFT(
-  walletClient: ViemWalletClient,
+  client: ViemWalletClient,
   tokenProps: CreateFungibleTokenProps
 ): Promise<Address> {
   const { name, symbol, decimals, initialSupply } = tokenProps;
-
   // Deploy the contract
-  const { contractAddress } = await walletClient.deployContract({
+
+  // @ts-ignore
+  const contractAddress = await client.deployContract({
     abi: ERC20_ABI,
     bytecode: ERC20_BYTECODE,
-    // The "account" is your signer. Some setups might let you set a default account
-    // on the walletClient. If not, specify it here:
-    //   account: "0x...",
     args: [name, symbol, decimals, initialSupply],
   });
 

@@ -3,6 +3,8 @@ import { Address, WalletClient as ViemWalletClient } from "viem";
 import { get_hbar_balance } from "../tools/hts/queries/balance";
 import { transfer_hbar } from "../tools/hbar/transactions/transfer";
 import { get_evm_address } from "../tools/address";
+import { createFT, CreateFungibleTokenProps } from "../tools/createFT";
+import { mintFT } from "../tools/mintFT";
 
 /**
  * Configuration options for AgentKit
@@ -79,5 +81,32 @@ export class ViemAgentKit {
    */
   async getEvmAddress(): Promise<Address> {
     return get_evm_address(this.viemClient);
+  }
+
+  /**
+   * Creates a new fungible token.
+   *
+   * @param tokenProps - The properties of the token to create.
+   * @returns The address of the newly created token.
+   */
+  async createFungibleToken(
+    tokenProps: CreateFungibleTokenProps
+  ): Promise<Address> {
+    return createFT(this.viemClient, tokenProps);
+  }
+
+  /**
+   * Mints a new fungible token.
+   *
+   * @param tokenAddress - The address of the token to mint.
+   * @param amount - The amount of tokens to mint.
+   * @returns The address of the newly created token.
+   */
+  async mintFungibleToken(
+    tokenAddress: Address,
+    amount: number,
+    recipient: Address
+  ): Promise<Address> {
+    return mintFT(this.viemClient, tokenAddress, amount, recipient);
   }
 }

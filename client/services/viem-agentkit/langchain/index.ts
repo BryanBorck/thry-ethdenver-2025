@@ -80,6 +80,110 @@ If no input is given (empty JSON '{}'), it returns the balance of the connected 
   }
 }
 
+export class HederaCreateFungibleTokenTool extends Tool {
+  name = "hedera_create_fungible_token";
+
+  description = `Deploy a new fungible token (ERC-20 style) on Hedera.
+  Inputs (input is a JSON string):
+  name: string, the name of the token (e.g. "My Token"),
+  symbol: string, the symbol of the token (e.g. "MT"),
+  decimals: number, the number of decimals for the token (e.g. 18),
+  initialSupply: number, the initial supply of tokens (e.g. 100000),
+  
+  Example usage:
+  1. Deploy a fungible token named "My Token" with symbol "MT", 18 decimals, and an initial supply of 100000:
+    '{
+      "name": "My Token",
+      "symbol": "MT",
+      "decimals": 18,
+      "initialSupply": 100000
+    }'
+  `;
+
+  constructor(private viemAgentKit: ViemAgentKit) {
+    super();
+  }
+
+  protected async _call(input: string): Promise<string> {
+    try {
+      const parsedInput = JSON.parse(input);
+
+      // Deploy an ERC-20 contract using createFT (simple example)
+      const txHash = await this.viemAgentKit.createFungibleToken({
+        name: parsedInput.name,
+        symbol: parsedInput.symbol,
+        decimals: parsedInput.decimals,
+        initialSupply: BigInt(parsedInput.initialSupply),
+      });
+
+      return JSON.stringify({
+        status: "success",
+        message: "Token creation successful",
+        name: parsedInput.name,
+        symbol: parsedInput.symbol,
+        decimals: parsedInput.decimals,
+        initialSupply: parsedInput.initialSupply,
+        txHash: txHash,
+      });
+    } catch (error: any) {
+      return JSON.stringify({
+        status: "error",
+        message: error.message,
+        code: error.code || "UNKNOWN_ERROR",
+      });
+    }
+  }
+}
+
+export class HederaMintFungibleTokenTool extends Tool {
+  name = "hedera_mint_fungible_token";
+
+  description = `Mint fungible tokens to an account on Hedera using EVM addresses.
+Inputs (input is a JSON string):
+tokenAddress: string, the EVM address of the token to mint, e.g. 0x1234567890abcdef1234567890abcdef12345678,
+amount: number, the amount of tokens to mint, e.g. 100,
+recipient: string, the EVM address of the recipient, e.g. 0xabcdefabcdefabcdefabcdefabcdefabcdef,
+Example usage:
+1. Mint 100 tokens of token 0x1234567890abcdef1234567890abcdef12345678 to account 0xabcdefabcdefabcdefabcdefabcdefabcdef:
+  '{
+    "tokenAddress": "0x1234567890abcdef1234567890abcdef12345678",
+    "amount": 100,
+    "recipient": "0xabcdefabcdefabcdefabcdefabcdefabcdef"
+  }'
+`;
+
+  constructor(private viemAgentKit: ViemAgentKit) {
+    super();
+  }
+
+  protected async _call(input: string): Promise<string> {
+    try {
+      const parsedInput = JSON.parse(input);
+
+      const txHash = await this.viemAgentKit.mintFungibleToken(
+        parsedInput.tokenAddress,
+        parsedInput.amount,
+        parsedInput.recipient
+      );
+
+      return JSON.stringify({
+        status: "success",
+        message: "Token minting successful",
+        tokenAddress: parsedInput.tokenAddress,
+        amount: parsedInput.amount,
+        recipient: parsedInput.recipient,
+        txHash: txHash,
+      });
+    } catch (error: any) {
+      return JSON.stringify({
+        status: "error",
+        message: error.message,
+        code: error.code || "UNKNOWN_ERROR",
+      });
+    }
+  }
+}
+
 export class HederaTransferHbarTool extends Tool {
   name = "hedera_transfer_hbar";
 
@@ -129,5 +233,7 @@ export function createViemTools(viemAgentKit: ViemAgentKit): Tool[] {
     new HederaGetEvmAddressTool(viemAgentKit),
     new HederaGetBalanceTool(viemAgentKit),
     new HederaTransferHbarTool(viemAgentKit),
+    new HederaCreateFungibleTokenTool(viemAgentKit),
+    new HederaMintFungibleTokenTool(viemAgentKit),
   ];
 }
