@@ -109,6 +109,7 @@ async function initializeAgent(hederaAccountId: string, hederaPrivateKey: string
   process.env.HEDERA_ACCOUNT_ID = hederaAccountId;
   process.env.HEDERA_PRIVATE_KEY = hederaPrivateKey;
   process.env.OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+  process.env.HEDERA_NETWORK = process.env.NEXT_PUBLIC_HEDERA_NETWORK || "testnet";
 
   try {
     const llm = new ChatOpenAI({
