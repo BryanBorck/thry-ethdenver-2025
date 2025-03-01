@@ -216,7 +216,7 @@ async function runChatMode(agent: any, config: any, userPrompt: string, db: any)
   const messagesForStream = [...history, userMessage];
   const stream = await agent.stream({ messages: messagesForStream }, config);
 
-  const responses: { type: string; message: string }[] = [];
+  const responses: { type: string; message: string, tool_calls?: any[] }[] = [];
   let lastAgentResponse = null;
   for await (const chunk of stream) {
     if ("agent" in chunk) {
@@ -224,6 +224,7 @@ async function runChatMode(agent: any, config: any, userPrompt: string, db: any)
       responses.push({
         type: "agent",
         message: agentMsg.content,
+        tool_calls: agentMsg.tool_calls,
       });
       lastAgentResponse = agentMsg.content;
     } else if ("tools" in chunk) {

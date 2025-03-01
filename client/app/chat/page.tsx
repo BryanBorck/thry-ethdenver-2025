@@ -10,7 +10,7 @@ import { executeAgentHandler, initSqlJsDatabase, loadMessages } from "../../serv
 export default function ChatPage() {
   const [prompt, setPrompt] = useState("");
   const [responses, setResponses] = useState<
-    { type: string; message: string; timestamp: number }[]
+    { type: string; message: string; timestamp: number; tool_calls?: any[] }[]
   >([]);
   const [loading, setLoading] = useState(false);
   const { address } = useAccount();
@@ -126,40 +126,147 @@ export default function ChatPage() {
               </p>
             </div>
           ) : (
-            responses.map((res, idx) => (
-              <div
-                key={idx}
-                className={`max-w-md transition-all duration-500 transform-gpu ${res.type === "user" ? "ml-auto" : "mr-auto"
-                  }`}
-                style={{ animation: "fadeIn 0.4s ease-in-out" }}
-              >
-                <div
-                  className={`max-w-md ${res.type === "user"
-                    ? "ml-auto bg-gray-100/70"
-                    : res.type === "error"
-                      ? "mr-auto bg-red-100/70"
-                      : "mr-auto bg-background/70"
-                    } backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
-                  style={{ animation: "fadeInUp 0.5s forwards" }}
-                >
-                  <p>{res.message}</p>
-                  <p className="text-right text-xs opacity-70 mt-1">
-                    {formatTime(res.timestamp)}
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
+            responses.map((res, idx) => {
+              // Set the alignment based on whether it's a user message or not.
+              const alignment = res.type === "user" ? "ml-auto" : "mr-auto";
+              // Base container for the bubble
+              const baseContainer = `max-w-md transition-all duration-500 transform-gpu ${alignment}`;
+              let bubbleContent = null;
 
-          {/* Loading indicator */}
-          {loading && (
-            <div className="flex flex-col items-start justify-start">
-              <AnimatedShinyText className="py-1 transition ease-out hover:text-neutral-700 hover:duration-500">
-                <span className="text-gray-400 font-light">Thinking...</span>
-              </AnimatedShinyText>
-            </div>
+              if (res.type === "user") {
+                // User messages keep the same styling.
+                bubbleContent = (
+                  <div
+                    className="max-w-md ml-auto bg-gray-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                    style={{ animation: "fadeInUp 0.5s forwards" }}
+                  >
+                    <p>
+                      <strong>User</strong>
+                    </p>
+                    <div className="mt-2" />
+                    <p>{res.message}</p>
+                    <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
+                  </div>
+                );
+              } else if (res.type === "agent") {
+                // For agent type, render message if it exists...
+                if (res.message) {
+                  bubbleContent = (
+
+                    <div
+                      className="max-w-md mr-auto bg-background/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                      style={{ animation: "fadeInUp 0.5s forwards" }}
+                    >
+                      <p>
+                        <strong>Agent</strong>
+                      </p>
+                      <div className="mt-2" />
+                      <p>{res.message}</p>
+                      <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
+                    </div>
+                  );
+                }
+                // ...otherwise check for tool_calls.
+                else if (res.tool_calls) {
+                  bubbleContent = (
+                    <div
+                      className="max-w-md mr-auto bg-indigo-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                      style={{ animation: "fadeInUp 0.5s forwards" }}
+                    >
+                      {Object.entries(res.tool_calls).map(([key, tool_call], index) => (
+                        <div key={index} className="mb-2">
+                          <p>
+                            <strong>Agent</strong> (a tool call was made)
+                          </p>
+                          <div className="mt-2" />
+                          <p>
+                            Tool Name: <span className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">{tool_call.name}</span>
+                          </p>
+                          <div className="mt-2" />
+                          <p>
+                            Tool Args:
+                          </p>
+                          <div className="mt-1" />
+                          <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+                            {(() => {
+                              let args = tool_call.args;
+                              try {
+                                if (typeof args === "string") {
+                                  args = JSON.parse(args);
+                                }
+                              } catch (e) {
+                                // Parsing failed; keep args as is.
+                              }
+                              if (args && typeof args.input === "string") {
+                                try {
+                                  args.input = JSON.parse(args.input);
+                                } catch (e) {
+                                  // Parsing failed; leave input as-is.
+                                }
+                              }
+                              return JSON.stringify(args, null, 2);
+                            })()}
+                          </pre>
+                        </div>
+                      ))}
+                      <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
+                    </div>
+                  );
+                }
+              } else if (res.type === "tools") {
+                let parsedMessage;
+                try {
+                  parsedMessage = JSON.parse(res.message);
+                } catch (error) {
+                  // Fallback if JSON parsing fails
+                  parsedMessage = res.message;
+                }
+
+                // Choose background based on status.
+                const bgClass =
+                  parsedMessage.status === "error"
+                    ? "bg-red-100/70"
+                    : parsedMessage.status === "success"
+                      ? "bg-green-100/70"
+                      : "bg-gray-100/70";
+
+                bubbleContent = (
+                  <div
+                    className={`max-w-md mr-auto ${bgClass} backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
+                    style={{ animation: "fadeInUp 0.5s forwards" }}
+                  >
+                    <p>
+                      <strong>Tool</strong>
+                    </p>
+                    <div className="mt-2" />
+                    <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+                      {parsedMessage.message}
+                    </pre>
+                    <p className="text-right text-xs opacity-70 mt-1">
+                      {formatTime(res.timestamp)}
+                    </p>
+                  </div>
+                )
+              } else if (res.type === "error") {
+                // Fallback for any error type.
+                bubbleContent = (
+                  <div
+                    className="max-w-md mr-auto bg-red-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                    style={{ animation: "fadeInUp 0.5s forwards" }}
+                  >
+                    <p>{res.message}</p>
+                    <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={idx} className={baseContainer} style={{ animation: "fadeIn 0.4s ease-in-out" }}>
+                  {bubbleContent}
+                </div>
+              );
+            })
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Input bar */}
