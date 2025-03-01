@@ -516,8 +516,8 @@ export default function ChatPage() {
                   parsedMessage.status === "error"
                     ? "bg-red-100/70"
                     : parsedMessage.status === "success"
-                    ? "bg-green-100/70"
-                    : "bg-gray-100/70";
+                      ? "bg-green-100/70"
+                      : "bg-gray-100/70";
 
                 bubbleContent = (
                   <div
