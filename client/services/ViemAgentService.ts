@@ -1,8 +1,9 @@
 // hederaAgentClient.ts
 
+"use client";
+
 import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage } from "@langchain/core/messages";
-// import { MemorySaver } from "@langchain/langgraph";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 
 import { createWalletClient, http, type Address, custom } from "viem";
@@ -13,6 +14,100 @@ import { ViemAgentKit } from "./viem-agentkit/agent";
 import { createViemTools } from "./viem-agentkit/langchain";
 import { ViemWalletProvider } from "./viem-agentkit/wallet-providers/viemWalletProvider";
 import { ViemWalletProviderGasConfig } from "./viem-agentkit/wallet-providers/viemWalletProvider";
+
+
+// --------------------------------------
+// 0) Initialize SQL.js database
+// --------------------------------------
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("sqljs-store", 1);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("db")) {
+        db.createObjectStore("db");
+      }
+    };
+    request.onsuccess = (event) => {
+      resolve(event.target.result);
+    };
+    request.onerror = (event) => {
+      reject(event.target.error);
+    };
+  });
+}
+
+async function loadPersistedData() {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const transaction = idb.transaction("db", "readonly");
+    const store = transaction.objectStore("db");
+    const request = store.get("sqljs-db");
+    request.onsuccess = (event) => {
+      const result = event.target.result;
+      resolve(result ? new Uint8Array(result) : null);
+    };
+    request.onerror = (event) => {
+      reject(event.target.error);
+    };
+  });
+}
+
+async function savePersistedData(data) {
+  const idb = await openIDB();
+  return new Promise((resolve, reject) => {
+    const transaction = idb.transaction("db", "readwrite");
+    const store = transaction.objectStore("db");
+    const request = store.put(data.buffer, "sqljs-db");
+    request.onsuccess = () => {
+      resolve();
+    };
+    request.onerror = (event) => {
+      reject(event.target.error);
+    };
+  });
+}
+
+async function initSqlJsDatabase() {
+  if (typeof window === "undefined") {
+    throw new Error("SQL.js can only be used in the browser");
+  }
+  const initSqlJsModule = await import("sql.js");
+  const SQL = await initSqlJsModule.default({
+    locateFile: (file: string) => `/sql-wasm.wasm`,
+  });
+  let db;
+  const persistedData = await loadPersistedData();
+  if (persistedData) {
+    db = new SQL.Database(new Uint8Array(persistedData));
+  } else {
+    db = new SQL.Database();
+  }
+  db.run(
+    "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT, type TEXT, content TEXT);"
+  );
+  return db;
+}
+
+function loadMessages(db, threadId) {
+  const stmt = db.prepare("SELECT type, content FROM messages WHERE thread_id = :threadId ORDER BY id ASC;");
+  stmt.bind({ ':threadId': threadId });
+  const messages = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    messages.push(row);
+  }
+  stmt.free();
+  return messages;
+}
+
+function saveMessage(db, threadId, type, content) {
+  const stmt = db.prepare("INSERT INTO messages (thread_id, type, content) VALUES (:threadId, :type, :content);");
+  stmt.bind({ ':threadId': threadId, ':type': type, ':content': content });
+  stmt.step();
+  stmt.free();
+}
+
 
 // --------------------------------------
 // 1) Initialize Agent
@@ -51,7 +146,6 @@ async function initializeAgent(address: Address) {
   const tools = createViemTools(viemKit);
 
   // 6. Prepare an in-memory checkpoint saver
-  // const memory = new MemorySaver();
 
   // 7. Additional configuration for the agent
   const config = { configurable: { thread_id: "Hedera Agent Kit!" } };
@@ -107,19 +201,25 @@ async function runAutonomousMode(agent: any, config: any) {
 // --------------------------------------
 // 3) Chat mode for a single user prompt
 // --------------------------------------
-async function runChatMode(agent: any, config: any, userPrompt: string) {
-  const stream = await agent.stream(
-    { messages: [new HumanMessage(userPrompt)] },
-    config
+async function runChatMode(agent: any, config: any, userPrompt: string, db: any) {
+  const historyRows = loadMessages(db, config.configurable.thread_id);
+  const history = historyRows.map(row =>
+    row.type === 'user' ? new HumanMessage(row.content) : new AIMessage(row.content)
   );
+  const userMessage = new HumanMessage(userPrompt);
+  const messagesForStream = [...history, userMessage];
+  const stream = await agent.stream({ messages: messagesForStream }, config);
 
   const responses: { type: string; message: string }[] = [];
+  let lastAgentResponse = null;
   for await (const chunk of stream) {
     if ("agent" in chunk) {
+      const agentMsg = chunk.agent.messages[0];
       responses.push({
         type: "agent",
-        message: chunk.agent.messages[0].content,
+        message: agentMsg.content,
       });
+      lastAgentResponse = agentMsg.content;
     } else if ("tools" in chunk) {
       responses.push({
         type: "tools",
@@ -127,6 +227,13 @@ async function runChatMode(agent: any, config: any, userPrompt: string) {
       });
     }
   }
+
+  saveMessage(db, config.configurable.thread_id, 'user', userPrompt);
+  if (lastAgentResponse) {
+    saveMessage(db, config.configurable.thread_id, 'agent', lastAgentResponse);
+  }
+  const binaryData = db.export();
+  await savePersistedData(binaryData);
 
   return responses;
 }
@@ -142,13 +249,14 @@ export async function executeAgentHandler(options: {
   try {
     const { mode, userPrompt = "", address = "" } = options;
     // Initialize the agent
+    const db = await initSqlJsDatabase();
     const { agent, config } = await initializeAgent(address as `0x${string}`);
 
     if (mode === "auto") {
       return await runAutonomousMode(agent, config);
     } else {
       // default to "chat" mode
-      return await runChatMode(agent, config, userPrompt);
+      return await runChatMode(agent, config, userPrompt, db);
     }
   } catch (error: any) {
     console.error("Error in executeAgentHandler:", error?.message || error);
