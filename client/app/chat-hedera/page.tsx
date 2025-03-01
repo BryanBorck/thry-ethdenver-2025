@@ -457,35 +457,17 @@ export default function ChatHederaPage() {
                       <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
                     </div>
                   );
-                } else if (res.type === "agent") {
-                  // For agent type, render message if it exists...
-                  if (res.message) {
-                    bubbleContent = (
-
-                      <div
-                        className="max-w-md mr-auto bg-background/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
-                        style={{ animation: "fadeInUp 0.5s forwards" }}
-                      >
-                        <p>
-                          <strong>Agent</strong>
-                        </p>
-                        <div className="mt-2" />
-                        <p>{res.message}</p>
-                        <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
-                      </div>
-                    );
-                  }
-                  // ...otherwise check for tool_calls.
-                  else if (res.tool_calls) {
-                    bubbleContent = (
-                      <div
-                        className="max-w-md mr-auto bg-indigo-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
-                        style={{ animation: "fadeInUp 0.5s forwards" }}
-                      >
-                        {Object.entries(res.tool_calls).map(([key, tool_call], index) => (
+                } else if (res.type === "agent" && res.tool_calls && res.tool_calls.length > 0) {
+                  bubbleContent = (
+                    <div
+                      className="max-w-md mr-auto bg-indigo-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                      style={{ animation: "fadeInUp 0.5s forwards" }}
+                    >
+                      {Object.entries(res.tool_calls).map(
+                        ([key, tool_call], index) => (
                           <div key={index} className="mb-2">
                             <p>
-                              <strong>Agent</strong> (a tool call was made)
+                              <strong>Agent</strong> (tool call made)
                             </p>
                             {res.message && (
                               <>
@@ -495,12 +477,13 @@ export default function ChatHederaPage() {
                             )}
                             <div className="mt-2" />
                             <p>
-                              Tool Name: <span className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">{tool_call.name}</span>
+                              Tool Name:{" "}
+                              <span className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+                                {tool_call.name}
+                              </span>
                             </p>
                             <div className="mt-2" />
-                            <p>
-                              Tool Args:
-                            </p>
+                            <p>Tool Args:</p>
                             <div className="mt-1" />
                             <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
                               {(() => {
@@ -510,24 +493,42 @@ export default function ChatHederaPage() {
                                     args = JSON.parse(args);
                                   }
                                 } catch (e) {
-                                  // Parsing failed; keep args as is.
+                                  // ignore
                                 }
                                 if (args && typeof args.input === "string") {
                                   try {
                                     args.input = JSON.parse(args.input);
                                   } catch (e) {
-                                    // Parsing failed; leave input as-is.
+                                    // ignore
                                   }
                                 }
                                 return JSON.stringify(args, null, 2);
                               })()}
                             </pre>
                           </div>
-                        ))}
-                        <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
-                      </div>
-                    );
-                  }
+                        )
+                      )}
+                      <p className="text-right text-xs opacity-70 mt-1">
+                        {formatTime(res.timestamp)}
+                      </p>
+                    </div>
+                  );
+                } else if (res.type === "agent") {
+                  bubbleContent = (
+                    <div
+                      className="max-w-md mr-auto bg-background/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                      style={{ animation: "fadeInUp 0.5s forwards" }}
+                    >
+                      <p>
+                        <strong>Agent</strong>
+                      </p>
+                      <div className="mt-2" />
+                      <p>{res.message}</p>
+                      <p className="text-right text-xs opacity-70 mt-1">
+                        {formatTime(res.timestamp)}
+                      </p>
+                    </div>
+                  );
                 } else if (res.type === "agent_form") {
                   // A special bubble containing an embedded form
                   // We'll look up the form data from formsData using res.formId

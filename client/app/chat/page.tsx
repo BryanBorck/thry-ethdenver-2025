@@ -363,6 +363,62 @@ export default function ChatPage() {
                     </p>
                   </div>
                 );
+              } else if (res.type === "agent" && res.tool_calls && res.tool_calls.length > 0) {
+                bubbleContent = (
+                  <div
+                    className="max-w-md mr-auto bg-indigo-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                    style={{ animation: "fadeInUp 0.5s forwards" }}
+                  >
+                    {Object.entries(res.tool_calls).map(
+                      ([key, tool_call], index) => (
+                        <div key={index} className="mb-2">
+                          <p>
+                            <strong>Agent</strong> (tool call made)
+                          </p>
+                          {res.message && (
+                            <>
+                              <div className="mt-2" />
+                              <p>{res.message}</p>
+                            </>
+                          )}
+                          <div className="mt-2" />
+                          <p>
+                            Tool Name:{" "}
+                            <span className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+                              {tool_call.name}
+                            </span>
+                          </p>
+                          <div className="mt-2" />
+                          <p>Tool Args:</p>
+                          <div className="mt-1" />
+                          <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+                            {(() => {
+                              let args = tool_call.args;
+                              try {
+                                if (typeof args === "string") {
+                                  args = JSON.parse(args);
+                                }
+                              } catch (e) {
+                                // ignore
+                              }
+                              if (args && typeof args.input === "string") {
+                                try {
+                                  args.input = JSON.parse(args.input);
+                                } catch (e) {
+                                  // ignore
+                                }
+                              }
+                              return JSON.stringify(args, null, 2);
+                            })()}
+                          </pre>
+                        </div>
+                      )
+                    )}
+                    <p className="text-right text-xs opacity-70 mt-1">
+                      {formatTime(res.timestamp)}
+                    </p>
+                  </div>
+                );
               } else if (res.type === "agent") {
                 bubbleContent = (
                   <div
@@ -531,64 +587,6 @@ export default function ChatPage() {
                     <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
                       {JSON.stringify(parsedMessage, null, 2)}
                     </pre>
-                    <p className="text-right text-xs opacity-70 mt-1">
-                      {formatTime(res.timestamp)}
-                    </p>
-                  </div>
-                );
-              } else if (res.type === "agent" && res.tool_calls) {
-                // If there's a message with tool calls
-                // (you might separate logic for agent + tool calls, or unify them)
-                bubbleContent = (
-                  <div
-                    className="max-w-md mr-auto bg-indigo-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
-                    style={{ animation: "fadeInUp 0.5s forwards" }}
-                  >
-                    {Object.entries(res.tool_calls).map(
-                      ([key, tool_call], index) => (
-                        <div key={index} className="mb-2">
-                          <p>
-                            <strong>Agent</strong> (tool call made)
-                          </p>
-                          {res.message && (
-                            <>
-                              <div className="mt-2" />
-                              <p>{res.message}</p>
-                            </>
-                          )}
-                          <div className="mt-2" />
-                          <p>
-                            Tool Name:{" "}
-                            <span className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
-                              {tool_call.name}
-                            </span>
-                          </p>
-                          <div className="mt-2" />
-                          <p>Tool Args:</p>
-                          <div className="mt-1" />
-                          <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
-                            {(() => {
-                              let args = tool_call.args;
-                              try {
-                                if (typeof args === "string") {
-                                  args = JSON.parse(args);
-                                }
-                              } catch (e) {
-                                // ignore
-                              }
-                              if (args && typeof args.input === "string") {
-                                try {
-                                  args.input = JSON.parse(args.input);
-                                } catch (e) {
-                                  // ignore
-                                }
-                              }
-                              return JSON.stringify(args, null, 2);
-                            })()}
-                          </pre>
-                        </div>
-                      )
-                    )}
                     <p className="text-right text-xs opacity-70 mt-1">
                       {formatTime(res.timestamp)}
                     </p>
