@@ -2,6 +2,7 @@ import { ViemWalletProvider } from "../wallet-providers/viemWalletProvider";
 import { Address, WalletClient as ViemWalletClient } from "viem";
 import { get_hbar_balance } from "../tools/hts/queries/balance";
 import { transfer_hbar } from "../tools/hbar/transactions/transfer";
+import { transfer_token } from "../tools/hts/transactions/transfer";
 import { get_evm_address } from "../tools/address";
 import { createFT, CreateFungibleTokenProps } from "../tools/createFT";
 import { mintFT } from "../tools/mintFT";
@@ -72,6 +73,18 @@ export class ViemAgentKit {
    */
   async transferHbar(to?: Address, amountHbar?: number): Promise<string> {
     return transfer_hbar(this.viemClient, to, amountHbar);
+  }
+
+  /**
+   * Transfers a fungible token to another account.
+   *
+   * @param tokenAddress - The ID of the token to transfer.
+   * @param toAccountId - The account ID to transfer to.
+   * @param amount - The amount of tokens to transfer.
+   * @returns The transaction
+   */
+  async transferToken(tokenAddress: Address, toAccountId: `0x${string}`, amount: number): Promise<string> {
+    return transfer_token(this.viemClient, tokenAddress, toAccountId, amount);
   }
 
   /**

@@ -80,6 +80,47 @@ If no input is given (empty JSON '{}'), it returns the balance of the connected 
   }
 }
 
+export class HederaTransferTokenTool extends Tool {
+  name = 'hedera_transfer_token'
+
+  description = `Transfer token on Hedera, whenever someone wants to transfer a token to another account, specifying the token address
+Inputs ( input is a JSON string ):
+tokenAddress: string, the Addre of the token to transfer e.g. 0x1234567890abcdef1234567890abcdef12345678,
+toAccountId: string, the account ID to transfer to e.g. 0x1234567890abcdef1234567890abcdef12345678,
+amount: number, the amount of tokens to transfer e.g. 100
+`
+
+  constructor(private viemAgentKit: ViemAgentKit) {
+    super()
+  }
+
+  protected async _call(input: string): Promise<string> {
+    try {
+      const parsedInput = JSON.parse(input);
+
+      await this.viemAgentKit.transferToken(
+        parsedInput.tokenAddress,
+        parsedInput.toAccountId,
+        parsedInput.amount
+      );
+
+      return JSON.stringify({
+        status: "success",
+        message: "Token transfer successful",
+        tokenAddress: parsedInput.tokenAddress,
+        toAccountId: parsedInput.toAccountId,
+        amount: parsedInput.amount
+      });
+    } catch (error: any) {
+      return JSON.stringify({
+        status: "error",
+        message: error.message,
+        code: error.code || "UNKNOWN_ERROR",
+      });
+    }
+  }
+}
+
 export class HederaCreateFungibleTokenTool extends Tool {
   name = "hedera_create_fungible_token";
 
@@ -234,5 +275,6 @@ export function createViemTools(viemAgentKit: ViemAgentKit): Tool[] {
     new HederaTransferHbarTool(viemAgentKit),
     new HederaCreateFungibleTokenTool(viemAgentKit),
     new HederaMintFungibleTokenTool(viemAgentKit),
+    new HederaTransferTokenTool(viemAgentKit),
   ];
 }
