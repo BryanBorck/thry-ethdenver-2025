@@ -68,7 +68,7 @@ async function savePersistedData(data) {
   });
 }
 
-async function initSqlJsDatabase() {
+export async function initSqlJsDatabase() {
   if (typeof window === "undefined") {
     throw new Error("SQL.js can only be used in the browser");
   }
@@ -84,13 +84,13 @@ async function initSqlJsDatabase() {
     db = new SQL.Database();
   }
   db.run(
-    "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT, type TEXT, content TEXT);"
+    "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT, type TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP);"
   );
   return db;
 }
 
-function loadMessages(db, threadId) {
-  const stmt = db.prepare("SELECT type, content FROM messages WHERE thread_id = :threadId ORDER BY id ASC;");
+export function loadMessages(db, threadId) {
+  const stmt = db.prepare("SELECT type, content, timestamp FROM messages WHERE thread_id = :threadId ORDER BY id ASC;");
   stmt.bind({ ':threadId': threadId });
   const messages = [];
   while (stmt.step()) {
@@ -102,8 +102,9 @@ function loadMessages(db, threadId) {
 }
 
 function saveMessage(db, threadId, type, content) {
-  const stmt = db.prepare("INSERT INTO messages (thread_id, type, content) VALUES (:threadId, :type, :content);");
-  stmt.bind({ ':threadId': threadId, ':type': type, ':content': content });
+  const timestamp = new Date().toISOString();
+  const stmt = db.prepare("INSERT INTO messages (thread_id, type, content, timestamp) VALUES (:threadId, :type, :content, :timestamp);");
+  stmt.bind({ ':threadId': threadId, ':type': type, ':content': content, ':timestamp': timestamp });
   stmt.step();
   stmt.free();
 }
