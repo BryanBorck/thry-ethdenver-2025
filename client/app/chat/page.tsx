@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAccount } from "wagmi";
-import { Send, Trash2 } from "lucide-react";
+import { Send, Trash2, Mic, StopCircle } from "lucide-react";
 import { Particles } from "@/components/magicui/particles";
 import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
 import { executeAgentHandler, initSqlJsDatabase, loadMessages, savePersistedData, THREAD_ID } from "../../services/ViemAgentService";
@@ -15,6 +15,9 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const { address } = useAccount();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [recording, setRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Decide if you want "chat" or "auto" mode:
   const mode = "chat"; // or "auto"
@@ -39,30 +42,31 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [responses]);
 
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = async (overridePrompt?: string, e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!prompt.trim()) return;
+    const messageText = overridePrompt !== undefined ? overridePrompt : prompt;
+    if (!messageText.trim()) return;
 
     // Add user message to responses
     const userMessage = {
       type: "user",
-      message: prompt,
+      message: messageText,
       timestamp: Date.now(),
     };
     setResponses((prev) => [...prev, userMessage]);
 
-    const currentPrompt = prompt;
-    setPrompt("");
+    // Clear input if using the prompt state
+    if (!overridePrompt) setPrompt("");
+
     setLoading(true);
 
     try {
       const result = await executeAgentHandler({
         mode,
-        userPrompt: currentPrompt,
+        userPrompt: messageText,
         address: address as `0x${string}`,
       });
 
-      // Add timestamps to the responses
       const timestampedResults = result.map((res: any) => ({
         ...res,
         timestamp: Date.now(),
@@ -89,6 +93,67 @@ export default function ChatPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  // Function to call the OpenAI Whisper API and get transcription text
+  const handleTranscribe = async (audioBlob: Blob) => {
+    const formData = new FormData();
+    formData.append("file", audioBlob, "audio.webm");
+    formData.append("model", "whisper-1");
+
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+    const data = await response.json();
+    return data.text;
+  };
+
+  const handleRecord = async () => {
+    if (!recording) {
+      // Start recording
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Audio recording is not supported in your browser.");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        audioChunksRef.current = [];
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+        recorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          try {
+            setLoading(true);
+            // Call the Whisper API to transcribe the audio
+            const transcriptionText = await handleTranscribe(audioBlob);
+            // Immediately send the transcribed text
+            setRecording(false);
+            await handleSend(transcriptionText);
+          } catch (err) {
+            console.error("Error during transcription:", err);
+          } finally {
+            setLoading(false);
+            setRecording(false);
+          }
+        };
+        recorder.start();
+        setMediaRecorder(recorder);
+        setRecording(true);
+      } catch (err) {
+        console.error("Error accessing microphone", err);
+      }
+    } else {
+      // Stop recording
+      mediaRecorder?.stop();
+    }
   };
 
   return (
@@ -306,9 +371,19 @@ export default function ChatPage() {
 
         {/* Input bar */}
         <form
-          onSubmit={handleSend}
+          onSubmit={(e) => handleSend(undefined, e)}
           className="px-4 py-2 border rounded-lg flex space-x-4 bg-white"
         >
+          <button
+            type="button"
+            onClick={handleRecord}
+            // Only disable if loading and not currently recording
+            disabled={loading && !recording}
+            className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 cursor-pointer"
+          >
+            {recording ? <StopCircle size={24} /> : <Mic size={24} />}
+          </button>
+
           <input
             type="text"
             className="flex-1 outline-none"
@@ -319,13 +394,13 @@ export default function ChatPage() {
           />
           <button
             type="submit"
-            className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 disabled:opacity-50 cursor-pointer"
+            className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 disabled:opacity-50"
             disabled={loading || !prompt.trim()}
           >
             <Send size={24} />
           </button>
         </form>
       </div>
-    </div>
+    </div >
   );
 }
