@@ -25,14 +25,14 @@
     "express": "^4.21.2",
     "reflect-metadata": "^0.2.2",
     "swagger-ui-express": "^5.0.1",
-    "viem": "^2.23.5"
+    "viem": "^2.23.5",
+    "typescript": "^5.7.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.7",
     "@types/swagger-ui-express": "^4.1.8",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.2"
+    "ts-node": "^10.9.2"
   }
 }
