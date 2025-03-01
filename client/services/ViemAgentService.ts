@@ -5,7 +5,7 @@ import { HumanMessage } from "@langchain/core/messages";
 // import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 
-import { createWalletClient, http, type Address } from "viem";
+import { createWalletClient, http, type Address, custom } from "viem";
 import { hederaTestnet } from "viem/chains";
 // import { privateKeyToAccount } from "viem/accounts";
 
@@ -28,10 +28,9 @@ async function initializeAgent(address: Address) {
   const walletClient = await createWalletClient({
     account: address,
     chain: hederaTestnet,
-    transport: http("https://testnet.hashio.io/api"),
+    transport: custom(window.ethereum!),
   });
 
-  console.log("@@@@@@@@", walletClient);
 
   // Optional: supply gas config for multipliers
   const gasConfig: ViemWalletProviderGasConfig = {

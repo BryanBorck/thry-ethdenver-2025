@@ -1,6 +1,7 @@
 import { ViemWalletProvider } from "../wallet-providers/viemWalletProvider";
 import { WalletClient as ViemWalletClient } from "viem";
 import { get_hbar_balance } from "../tools/balance";
+import { transfer_hbar } from "../tools/transfer";
 
 /**
  * Configuration options for AgentKit
@@ -57,5 +58,16 @@ export class ViemAgentKit {
     const targetAddress = (address ||
       this.walletProvider.getAddress()) as `0x${string}`;
     return get_hbar_balance(this.viemClient, targetAddress);
+  }
+
+  /**
+   * Transfers HBAR to another account.
+   *
+   * @param to - The recipient's address.
+   * @param amountHbar - The amount of HBAR to transfer.
+   * @returns The new HBAR balance as a number.
+   */
+  async transferHbar(to?: string, amountHbar?: number): Promise<number> {
+    return transfer_hbar(this.viemClient, to, amountHbar);
   }
 }

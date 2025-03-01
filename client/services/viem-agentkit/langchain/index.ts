@@ -46,6 +46,51 @@ If no input is given (empty JSON '{}'), it returns the balance of the connected 
   }
 }
 
+export class HederaTransferHbarTool extends Tool {
+  name = "hedera_transfer_hbar";
+
+  description = `Transfer HBAR to an account on Hedera
+Inputs ( input is a JSON string ):
+toAccountId: string, the account ID to transfer to e.g. 0x1234567890abcdef1234567890abcdef12345678,
+amount: number, the amount of HBAR to transfer e.g. 100,
+Example usage:
+1. Transfer 100 HBAR to account 0x1234567890abcdef1234567890abcdef12345678:
+  '{
+    "toAccountId": "0x1234567890abcdef1234567890abcdef12345678",
+    "amount": 100
+  }'
+`;
+
+  constructor(private viemAgentKit: ViemAgentKit) {
+    super();
+  }
+
+  protected async _call(input: string): Promise<string> {
+    try {
+      console.log(input);
+      const parsedInput = JSON.parse(input);
+
+
+      await this.viemAgentKit.transferHbar(
+        parsedInput.toAccountId,
+        parsedInput.amount
+      );
+      return JSON.stringify({
+        status: "success",
+        message: "HBAR transfer successful",
+        toAccountId: parsedInput.toAccountId,
+        amount: parsedInput.amount,
+      });
+    } catch (error: any) {
+      return JSON.stringify({
+        status: "error",
+        message: error.message,
+        code: error.code || "UNKNOWN_ERROR",
+      });
+    }
+  }
+}
+
 export function createViemTools(viemAgentKit: ViemAgentKit): Tool[] {
-  return [new HederaGetBalanceTool(viemAgentKit)];
+  return [new HederaGetBalanceTool(viemAgentKit), new HederaTransferHbarTool(viemAgentKit)];
 }
