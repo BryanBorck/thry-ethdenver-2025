@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "rootDir": "src",
+    "target": "es6",
+    "module": "commonjs",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "emitDecoratorMetadata": true, // <-- important for TypeORM
+    "experimentalDecorators": true, // <-- important for TypeORM
+    "strictPropertyInitialization": false, // or set it to true and use definite assignment (!)
+    "outDir": "dist"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "src/__tests__", "**/*.test.ts"],
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node"
+  }
+}
