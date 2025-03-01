@@ -4,7 +4,7 @@ import {
   initializeAgent,
   runAutonomousMode,
   runChatMode,
-} from '../services/HederaAgentService';
+} from '../services/ViemAgentService';
 
 /**
  * POST /execute controller
