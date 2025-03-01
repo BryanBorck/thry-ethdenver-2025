@@ -28,6 +28,8 @@ export default function TestPage() {
       transport: custom(window.ethereum!),
     });
 
+    console.log("@@@@@@@@", client);
+
     setClient(client);
   }
 
