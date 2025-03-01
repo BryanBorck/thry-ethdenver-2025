@@ -78,28 +78,28 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="relative h-screen pt-24 w-full">
+    <div className="relative h-screen pt-14 w-full">
       {/* Particles background */}
       <Particles
         className="absolute inset-0 z-0 pointer-events-none w-full"
         quantity={150}
         ease={80}
         size={0.6}
-        color={"#4169e1"}
+        color={"#ff2158"}
         refresh
       />
 
       {/* Main container */}
-      <div className="relative z-10 bg-transparent bg-blue-100 max-w-6xl mx-auto w-full h-[80vh] px-4 flex flex-col">
+      <div className="relative z-10 bg-transparent bg-blue-100 max-w-6xl mx-auto w-full h-[90vh] px-4 flex flex-col">
         {/* Header */}
-        <div className="flex flex-col items-start justify-start p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-sm items-center justify-between">
+        <div className="flex flex-col items-start justify-start p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-[1px] items-center justify-between">
           <div className="flex flex-col items-start justify-start px-4 py-1">
             <AnimatedShinyText>
-              <p className="text-xl font-bold">Hedera Chat</p>
+              <p className="text-xl font-bold">Hedera DeFi Agent</p>
             </AnimatedShinyText>
           </div>
           <div className="flex flex-col items-start justify-start">
-            <p className="text-xs text-muted-foreground truncate px-4">
+            <p className="text-xs text-[#ff2158] truncate px-4">
               {address ? `${address}` : "Not connected"}
             </p>
           </div>
@@ -125,7 +125,7 @@ export default function ChatPage() {
                 <div
                   className={`max-w-md ${
                     res.type === "user"
-                      ? "ml-auto bg-gray-200/70"
+                      ? "ml-auto bg-gray-100/70"
                       : res.type === "error"
                       ? "mr-auto bg-red-100/70"
                       : "mr-auto bg-background/70"
@@ -155,7 +155,7 @@ export default function ChatPage() {
         {/* Input bar */}
         <form
           onSubmit={handleSend}
-          className="p-4 border rounded-lg flex space-x-4 bg-white"
+          className="px-4 py-2 border rounded-lg flex space-x-4 bg-white"
         >
           <input
             type="text"
@@ -167,7 +167,7 @@ export default function ChatPage() {
           />
           <button
             type="submit"
-            className="p-2 border border-gray-400 text-gray-400 rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 disabled:opacity-50"
+            className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 disabled:opacity-50"
             disabled={loading || !prompt.trim()}
           >
             <Send size={24} />

@@ -18,7 +18,7 @@ export const RainbowProviders = ({ children }: ClientProviderProps) => {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={lightTheme({
-            accentColor: "#0abd99",
+            accentColor: "#ff2158",
             accentColorForeground: "white",
             borderRadius: "medium",
             overlayBlur: "small",
