@@ -23,9 +23,11 @@ export async function initializeAgent() {
     temperature: 0.7,
   });
 
+  console.log('ETHEREUM_PRIVATE_KEY', process.env.ETHEREUM_PRIVATE_KEY);
+
   // 2. Create a viem WalletClient pointed at Hedera Testnet
   const account = privateKeyToAccount(
-    process.env.PRIVATE_KEY! as `0x${string}`,
+    process.env.ETHEREUM_PRIVATE_KEY! as `0x${string}`,
   );
   const walletClient = createWalletClient({
     account,

@@ -13,6 +13,7 @@ export function validateEnvironment(): void {
     'OPENAI_API_KEY',
     'HEDERA_ACCOUNT_ID',
     'HEDERA_PRIVATE_KEY',
+    'ETHEREUM_PRIVATE_KEY',
   ];
   const missingVars = requiredVars.filter((v) => !process.env[v]);
 
