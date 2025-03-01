@@ -1,9 +1,9 @@
-import { createPublicClient, http, parseEther } from 'viem';
+import { createPublicClient, http, parseEther } from "viem";
 import type {
   WalletClient as ViemWalletClient,
   PublicClient as ViemPublicClient,
   Address,
-} from 'viem';
+} from "viem";
 
 export const transfer_hbar = async (
   client: ViemWalletClient,
@@ -11,7 +11,7 @@ export const transfer_hbar = async (
   amountHbar?: number
 ): Promise<string> => {
   if (!to || !amountHbar) {
-    throw new Error('Recipient address and amount must be provided');
+    throw new Error("Recipient address and amount must be provided");
   }
 
   // Create a public client using the wallet client's chain and HTTP transport
@@ -21,6 +21,7 @@ export const transfer_hbar = async (
 
   const value = parseEther(amountHbar.toString());
 
+  // @ts-ignore
   const hash = await client.sendTransaction({ to, value });
 
   console.log(`Transaction hash: ${hash}`);

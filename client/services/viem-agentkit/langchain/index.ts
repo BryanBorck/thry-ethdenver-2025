@@ -1,8 +1,42 @@
-import { Tool } from '@langchain/core/tools';
-import { ViemAgentKit } from '../agent';
+import { Tool } from "@langchain/core/tools";
+import { ViemAgentKit } from "../agent";
+
+export class HederaGetEvmAddressTool extends Tool {
+  name = "hedera_get_evm_address";
+
+  description = `Retrieves the account EVM address of the connected wallet.
+
+### **Example Usage:**
+1. **Get address of the connected account:**
+   '{}'
+`;
+
+  constructor(private viemAgentKit: ViemAgentKit) {
+    super();
+  }
+
+  protected async _call(input: string): Promise<string> {
+    try {
+      const parsedInput = JSON.parse(input);
+
+      const address = await this.viemAgentKit.getEvmAddress();
+
+      return JSON.stringify({
+        status: "success",
+        address: address,
+      });
+    } catch (error: any) {
+      return JSON.stringify({
+        status: "error",
+        message: error.message,
+        code: error.code || "UNKNOWN_ERROR",
+      });
+    }
+  }
+}
 
 export class HederaGetBalanceTool extends Tool {
-  name = 'hedera_get_hbar_balance';
+  name = "hedera_get_hbar_balance";
 
   description = `Retrieves the HBAR balance of a specified Hedera account using an EVM account address.
 If an EVM account address is provided, it returns the balance of that account.
@@ -28,19 +62,19 @@ If no input is given (empty JSON '{}'), it returns the balance of the connected 
       const parsedInput = JSON.parse(input);
 
       const balance = await this.viemAgentKit.getHbarBalance(
-        parsedInput?.evmAddress,
+        parsedInput?.evmAddress
       );
 
       return JSON.stringify({
-        status: 'success',
+        status: "success",
         balance: balance,
-        unit: 'HBAR',
+        unit: "HBAR",
       });
     } catch (error: any) {
       return JSON.stringify({
-        status: 'error',
+        status: "error",
         message: error.message,
-        code: error.code || 'UNKNOWN_ERROR',
+        code: error.code || "UNKNOWN_ERROR",
       });
     }
   }
@@ -70,7 +104,6 @@ Example usage:
       console.log(input);
       const parsedInput = JSON.parse(input);
 
-
       await this.viemAgentKit.transferHbar(
         parsedInput.toAccountId,
         parsedInput.amount
@@ -92,5 +125,8 @@ Example usage:
 }
 
 export function createViemTools(viemAgentKit: ViemAgentKit): Tool[] {
-  return [new HederaGetBalanceTool(viemAgentKit), new HederaTransferHbarTool(viemAgentKit)];
+  return [
+    new HederaGetBalanceTool(viemAgentKit),
+    new HederaTransferHbarTool(viemAgentKit),
+  ];
 }
