@@ -126,6 +126,7 @@ Example usage:
 
 export function createViemTools(viemAgentKit: ViemAgentKit): Tool[] {
   return [
+    new HederaGetEvmAddressTool(viemAgentKit),
     new HederaGetBalanceTool(viemAgentKit),
     new HederaTransferHbarTool(viemAgentKit),
   ];

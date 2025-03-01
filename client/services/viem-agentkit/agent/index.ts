@@ -72,6 +72,11 @@ export class ViemAgentKit {
     return transfer_hbar(this.viemClient, to, amountHbar);
   }
 
+  /**
+   * Returns the EVM address of the connected wallet.
+   *
+   * @returns The EVM address of the connected wallet.
+   */
   async getEvmAddress(): Promise<Address> {
     return get_evm_address(this.viemClient);
   }
