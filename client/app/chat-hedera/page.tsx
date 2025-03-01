@@ -48,7 +48,7 @@ interface FormData {
 export default function ChatHederaPage() {
   const [prompt, setPrompt] = useState("");
   const [responses, setResponses] = useState<
-    { type: string; message: string; timestamp: number, tool_calls?: any[] }[]
+    ResponseItem[]
   >([]);
   const [loading, setLoading] = useState(false);
   const { address } = useAccount();
@@ -66,6 +66,9 @@ export default function ChatHederaPage() {
 
   // Decide if you want "chat" or "auto" mode:
   const mode = "chat"; // or "auto"
+
+  // Holds input data for each form keyed by formId
+  const [formsData, setFormsData] = useState<Record<string, FormData>>({});
 
   // Check if credentials are missing and open dialog
   useEffect(() => {
@@ -103,7 +106,7 @@ export default function ChatHederaPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []); // Removed unnecessary dependency: responses
+  }, [responses]);
 
   /**
    * Send a message to the agent (or the conversation).
@@ -232,6 +235,86 @@ export default function ChatHederaPage() {
       // Stop recording
       mediaRecorder?.stop();
     }
+  };
+
+
+  /**
+   * Insert an "agent" form message for "Transfer HBAR".
+   * We'll store default form fields in formsData keyed by a unique formId.
+   */
+  const handleTransferHBAR = () => {
+    const formId = `form-${Date.now()}`;
+    setResponses((prev) => [
+      ...prev,
+      {
+        type: "agent_form",
+        message: "Please fill out the Transfer HBAR details below.",
+        timestamp: Date.now(),
+        formId,
+        formType: "transferHBAR",
+      },
+    ]);
+    setFormsData((prev) => ({
+      ...prev,
+      [formId]: {
+        toAccountId: "",
+        amount: "",
+      },
+    }));
+  };
+
+  /**
+   * Insert an "agent" form message for "Create Token".
+   */
+  const handleCreateToken = () => {
+    const formId = `form-${Date.now()}`;
+    setResponses((prev) => [
+      ...prev,
+      {
+        type: "agent_form",
+        message: "Fill out the details to create a new token:",
+        timestamp: Date.now(),
+        formId,
+        formType: "createToken",
+      },
+    ]);
+    setFormsData((prev) => ({
+      ...prev,
+      [formId]: {
+        name: "",
+        symbol: "",
+        decimals: "18",
+        initialSupply: "100000",
+      },
+    }));
+  };
+
+  /**
+   * Called when the user updates a form field. We store it in formsData state.
+   */
+  const handleFormChange = (formId: string, field: string, value: string) => {
+    setFormsData((prev) => ({
+      ...prev,
+      [formId]: {
+        ...prev[formId],
+        [field]: value,
+      },
+    }));
+  };
+
+  /**
+   * Called when the user clicks "Submit" on a form bubble.
+   * We convert the form data to JSON and send it as a user message.
+   */
+  const handleFormSubmit = (formId: string) => {
+    const data = formsData[formId];
+    if (!data) return;
+
+    // Convert the data into JSON
+    const jsonString = JSON.stringify(data, null, 2);
+
+    // Send as user message
+    handleSend(jsonString);
   };
 
 
@@ -445,6 +528,132 @@ export default function ChatHederaPage() {
                       </div>
                     );
                   }
+                } else if (res.type === "agent_form") {
+                  // A special bubble containing an embedded form
+                  // We'll look up the form data from formsData using res.formId
+                  const formId = res.formId!;
+                  const formType = res.formType!;
+                  const formData = formsData[formId] || {};
+
+                  bubbleContent = (
+                    <div
+                      className="max-w-md mr-auto bg-background/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                      style={{ animation: "fadeInUp 0.5s forwards" }}
+                    >
+                      <p>
+                        <strong>Agent</strong>
+                      </p>
+                      <p className="mt-2 font-semibold">{res.message}</p>
+
+                      {/* Render different fields for Transfer vs Create Token */}
+                      {formType === "transferHBAR" && (
+                        <div className="mt-4 space-y-2">
+                          <div>
+                            <label className="text-sm">
+                              Destination Account ID
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full p-1 border rounded text-sm"
+                              placeholder="0x123..."
+                              value={formData.toAccountId || ""}
+                              onChange={(e) =>
+                                handleFormChange(
+                                  formId,
+                                  "toAccountId",
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm">Amount (HBAR)</label>
+                            <input
+                              type="number"
+                              className="w-full p-1 border rounded text-sm"
+                              placeholder="100"
+                              value={formData.amount || ""}
+                              onChange={(e) =>
+                                handleFormChange(formId, "amount", e.target.value)
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {formType === "createToken" && (
+                        <div className="mt-4 space-y-2">
+                          <div>
+                            <label className="text-sm">Name</label>
+                            <input
+                              type="text"
+                              className="w-full p-1 border rounded text-sm"
+                              placeholder="My Token"
+                              value={formData.name || ""}
+                              onChange={(e) =>
+                                handleFormChange(formId, "name", e.target.value)
+                              }
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm">Symbol</label>
+                            <input
+                              type="text"
+                              className="w-full p-1 border rounded text-sm"
+                              placeholder="MT"
+                              value={formData.symbol || ""}
+                              onChange={(e) =>
+                                handleFormChange(formId, "symbol", e.target.value)
+                              }
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm">Decimals</label>
+                            <input
+                              type="number"
+                              className="w-full p-1 border rounded text-sm"
+                              placeholder="18"
+                              value={formData.decimals || ""}
+                              onChange={(e) =>
+                                handleFormChange(
+                                  formId,
+                                  "decimals",
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm">Initial Supply</label>
+                            <input
+                              type="number"
+                              className="w-full p-1 border rounded text-sm"
+                              placeholder="100000"
+                              value={formData.initialSupply || ""}
+                              onChange={(e) =>
+                                handleFormChange(
+                                  formId,
+                                  "initialSupply",
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        className="mt-4 px-3 py-1 border rounded text-sm bg-[#ff2158] text-white hover:bg-[#f3063f]"
+                        onClick={() => handleFormSubmit(formId)}
+                      >
+                        Submit
+                      </button>
+
+                      <p className="text-right text-xs opacity-70 mt-3">
+                        {formatTime(res.timestamp)}
+                      </p>
+                    </div>
+                  );
                 } else if (res.type === "tools") {
                   let parsedMessage;
                   try {
@@ -501,6 +710,29 @@ export default function ChatHederaPage() {
                 );
               })
             )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white p-4 rounded-md shadow mb-4">
+            <p className="mb-2 font-semibold">Quick Actions</p>
+            <div className="flex gap-2">
+              <button
+                className="px-3 py-1 border border-[#ff2158] text-[#ff2158] rounded text-sm hover:cursor-pointer hover:scale-105 transition-all ease-in-out duration-500"
+                onClick={handleTransferHBAR}
+              >
+                Transfer HBAR
+              </button>
+              <button
+                className="px-3 py-1 border border-[#ff2158] text-[#ff2158] rounded text-sm hover:cursor-pointer hover:scale-105 transition-all ease-in-out duration-500"
+                onClick={handleCreateToken}
+              >
+                Create Token
+              </button>
+              <button className="px-3 py-1 border border-[#ff2158] text-[#ff2158] rounded hover:cursor-pointer text-sm hover:scale-105 transition-all ease-in-out duration-500">
+                DeFi Portfolio Research
+              </button>
+            </div>
           </div>
 
           {/* Input bar */}
