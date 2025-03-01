@@ -22,47 +22,49 @@ import { ViemWalletProviderGasConfig } from "./viem-agentkit/wallet-providers/vi
 function openIDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open("sqljs-store", 1);
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = (event: any) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains("db")) {
         db.createObjectStore("db");
       }
     };
-    request.onsuccess = (event) => {
-      resolve(event.target.result);
+    request.onsuccess = (event: Event) => {
+      const db = (event.target as IDBRequest).result;
+      resolve(db);
     };
-    request.onerror = (event) => {
-      reject(event.target.error);
+    request.onerror = (event: Event) => {
+      const target = event.target as IDBRequest;
+      reject(target.error);
     };
   });
 }
 
 async function loadPersistedData() {
-  const idb = await openIDB();
+  const idb: any = await openIDB();
   return new Promise((resolve, reject) => {
     const transaction = idb.transaction("db", "readonly");
     const store = transaction.objectStore("db");
     const request = store.get("sqljs-db");
-    request.onsuccess = (event) => {
-      const result = event.target.result;
+    request.onsuccess = (event: Event) => {
+      const result = (event.target as IDBRequest).result;
       resolve(result ? new Uint8Array(result) : null);
     };
-    request.onerror = (event) => {
+    request.onerror = (event: { target: { error: any; }; }) => {
       reject(event.target.error);
     };
   });
 }
 
-async function savePersistedData(data) {
-  const idb = await openIDB();
-  return new Promise((resolve, reject) => {
+async function savePersistedData(data: Uint8Array) {
+  const idb: any = await openIDB();
+  return new Promise<void>((resolve, reject) => {
     const transaction = idb.transaction("db", "readwrite");
     const store = transaction.objectStore("db");
     const request = store.put(data.buffer, "sqljs-db");
     request.onsuccess = () => {
       resolve();
     };
-    request.onerror = (event) => {
+    request.onerror = (event: { target: { error: any; }; }) => {
       reject(event.target.error);
     };
   });
@@ -77,7 +79,7 @@ export async function initSqlJsDatabase() {
     locateFile: (file: string) => `/sql-wasm.wasm`,
   });
   let db;
-  const persistedData = await loadPersistedData();
+  const persistedData: any = await loadPersistedData();
   if (persistedData) {
     db = new SQL.Database(new Uint8Array(persistedData));
   } else {
@@ -89,7 +91,7 @@ export async function initSqlJsDatabase() {
   return db;
 }
 
-export function loadMessages(db, threadId) {
+export function loadMessages(db: any, threadId: string) {
   const stmt = db.prepare("SELECT type, content, timestamp FROM messages WHERE thread_id = :threadId ORDER BY id ASC;");
   stmt.bind({ ':threadId': threadId });
   const messages = [];
@@ -101,7 +103,7 @@ export function loadMessages(db, threadId) {
   return messages;
 }
 
-function saveMessage(db, threadId, type, content) {
+function saveMessage(db: any, threadId: string, type: string, content: string) {
   const timestamp = new Date().toISOString();
   const stmt = db.prepare("INSERT INTO messages (thread_id, type, content, timestamp) VALUES (:threadId, :type, :content, :timestamp);");
   stmt.bind({ ':threadId': threadId, ':type': type, ':content': content, ':timestamp': timestamp });
@@ -121,10 +123,13 @@ async function initializeAgent(address: Address) {
     temperature: 0.7,
   });
 
-  const walletClient = await createWalletClient({
+  const walletClient = createWalletClient({
     account: address,
     chain: hederaTestnet,
-    transport: custom(window.ethereum!),
+    transport: custom({
+      ...window.ethereum,
+      request: window.ethereum?.request ?? (() => Promise.reject("No request method available")),
+    }),
   });
 
 

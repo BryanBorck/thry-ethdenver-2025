@@ -1,7 +1,7 @@
 import { ViemWalletProvider } from "../wallet-providers/viemWalletProvider";
 import { Address, WalletClient as ViemWalletClient } from "viem";
-import { get_hbar_balance } from "../tools/balance";
-import { transfer_hbar } from "../tools/transfer";
+import { get_hbar_balance } from "../tools/hts/queries/balance";
+import { transfer_hbar } from "../tools/hbar/transactions/transfer";
 import { get_evm_address } from "../tools/address";
 
 /**
