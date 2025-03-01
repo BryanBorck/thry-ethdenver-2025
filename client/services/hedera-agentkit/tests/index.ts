@@ -1,21 +1,13 @@
-// hederaAgentClient.ts
-
-"use client";
-
+import HederaAgentKit from "../src/agent";
+import { createHederaTools } from "../src";
 import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import * as dotenv from "dotenv";
+import * as readline from "readline";
 
-import { createWalletClient, http, type Address, custom } from "viem";
-import { hederaTestnet } from "viem/chains";
-// import { privateKeyToAccount } from "viem/accounts";
-
-import { ViemAgentKit } from "./viem-agentkit/agent";
-import { createViemTools } from "./viem-agentkit/langchain";
-import { ViemWalletProvider } from "./viem-agentkit/wallet-providers/viemWalletProvider";
-import { ViemWalletProviderGasConfig } from "./viem-agentkit/wallet-providers/viemWalletProvider";
-
-export const THREAD_ID = "Viem Agent Kit!";
+dotenv.config();
 
 // --------------------------------------
 // 0) Initialize SQL.js database
@@ -56,7 +48,7 @@ async function loadPersistedData() {
   });
 }
 
-export async function savePersistedData(data: Uint8Array) {
+async function savePersistedData(data: Uint8Array) {
   const idb: any = await openIDB();
   return new Promise<void>((resolve, reject) => {
     const transaction = idb.transaction("db", "readwrite");
@@ -113,101 +105,89 @@ function saveMessage(db: any, threadId: string, type: string, content: string) {
 }
 
 
-// --------------------------------------
-// 1) Initialize Agent
-// --------------------------------------
-async function initializeAgent(address: Address) {
+async function initializeAgent(hederaAccountId: string, hederaPrivateKey: string) {
+  process.env.HEDERA_ACCOUNT_ID = hederaAccountId;
+  process.env.HEDERA_PRIVATE_KEY = hederaPrivateKey;
   process.env.OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-  // 1. Create your LLM
-  const llm = new ChatOpenAI({
-    modelName: "gpt-4",
-    temperature: 0.7,
-  });
 
-  const walletClient = createWalletClient({
-    account: address,
-    chain: hederaTestnet,
-    transport: custom({
-      ...window.ethereum,
-      request: window.ethereum?.request ?? (() => Promise.reject("No request method available")),
-    }),
-  });
+  try {
+    const llm = new ChatOpenAI({
+      modelName: "gpt-4",
+      temperature: 0.7,
+    });
 
+    // Initialize HederaAgentKit
+    const hederaKit = new HederaAgentKit(
+      process.env.HEDERA_ACCOUNT_ID!,
+      process.env.HEDERA_PRIVATE_KEY!,
+      // Pass your network of choice. Default is "mainnet".
+      // You can specify 'testnet', 'previewnet', or 'mainnet'.
+      process.env.HEDERA_NETWORK as "mainnet" | "testnet" | "previewnet" || "testnet"
+    );
 
-  // Optional: supply gas config for multipliers
-  const gasConfig: ViemWalletProviderGasConfig = {
-    gasLimitMultiplier: 1.2,
-    feePerGasMultiplier: 1.1,
-  };
+    // Create the LangChain-compatible tools
+    const tools = createHederaTools(hederaKit);
 
-  // 3. Create the ViemWalletProvider
-  const walletProvider = new ViemWalletProvider(walletClient, gasConfig);
+    // Prepare an in-memory checkpoint saver
 
-  // 4. Initialize the new ViemAgentKit
-  const viemKit = await ViemAgentKit.from({
-    walletProvider,
-    viemClient: walletClient,
-  });
+    // Additional configuration for the agent
+    const config = { configurable: { thread_id: "Hedera Agent Kit!" } };
 
-  // 5. Create the LangChain-compatible tools
-  const tools = createViemTools(viemKit);
+    // Create the React agent
+    const agent = createReactAgent({
+      llm,
+      tools,
+      // You can adjust this message for your scenario:
+      messageModifier: `
+        You are a helpful agent that can interact on-chain using the Hedera Agent Kit. 
+        You are empowered to interact on-chain using your tools. If you ever need funds,
+        you can request them from a faucet or from the user. 
+        If there is a 5XX (internal) HTTP error code, ask the user to try again later. 
+        If someone asks you to do something you can't do with your available tools, you 
+        must say so, and encourage them to implement it themselves with the Hedera Agent Kit. 
+        Keep your responses concise and helpful.
+      `,
+    });
 
-  // 6. Prepare an in-memory checkpoint saver
-
-  // 7. Additional configuration for the agent
-  const config = { configurable: { thread_id: "Viem Agent Kit!" } };
-
-  // 8. Create the React agent
-  const agent = createReactAgent({
-    llm,
-    tools,
-    // checkpointSaver: memory,
-    messageModifier: `
-      You are a helpful agent that can interact on-chain using the Hedera Agent Kit. 
-      You are empowered to interact on-chain using your tools. If you ever need funds,
-      you can request them from a faucet or from the user. 
-      If there is a 5XX (internal) HTTP error code, ask the user to try again later. 
-      If someone asks you to do something you can't do with your available tools, you 
-      must say so, and encourage them to implement it themselves with the Hedera Agent Kit. 
-      Keep your responses concise and helpful.
-    `,
-  });
-
-  return { agent, config };
+    return { agent, config };
+  } catch (error) {
+    console.error("Failed to initialize agent:", error);
+    throw error;
+  }
 }
 
-// --------------------------------------
-// 2) "autonomous" demonstration
-// --------------------------------------
-async function runAutonomousMode(agent: any, config: any) {
-  const thought =
-    "Perform an interesting on-chain action on Hedera that showcases your capabilities.";
-  const stream = await agent.stream(
-    { messages: [new HumanMessage(thought)] },
-    config
-  );
+async function runAutonomousMode(agent: any, config: any, interval = 10) {
+  console.log("Starting autonomous mode...");
 
-  const responses: { type: string; message: string }[] = [];
-  for await (const chunk of stream) {
-    if ("agent" in chunk) {
-      responses.push({
-        type: "agent",
-        message: chunk.agent.messages[0].content,
-      });
-    } else if ("tools" in chunk) {
-      responses.push({
-        type: "tools",
-        message: chunk.tools.messages[0].content,
-      });
+  while (true) {
+    try {
+      // The agent's "thought" is just a prompt you provide
+      const thought =
+        "Perform an interesting on-chain action on Hedera that showcases your capabilities.";
+
+      // You can stream or await the entire call
+      const stream = await agent.stream({ messages: [new HumanMessage(thought)] }, config);
+
+      for await (const chunk of stream) {
+        if ("agent" in chunk) {
+          console.log(chunk.agent.messages[0].content);
+        } else if ("tools" in chunk) {
+          console.log(chunk.tools.messages[0].content);
+        }
+        console.log("-------------------");
+      }
+
+      // Sleep for `interval` seconds between each iteration
+      await new Promise((resolve) => setTimeout(resolve, interval * 1000));
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Error:", error.message);
+      }
+      process.exit(1);
     }
   }
-
-  return responses;
 }
 
-// --------------------------------------
-// 3) Chat mode for a single user prompt
-// --------------------------------------
 async function runChatMode(agent: any, config: any, userPrompt: string, db: any) {
   const historyRows = loadMessages(db, config.configurable.thread_id);
   const history = historyRows.map(row =>
@@ -217,7 +197,7 @@ async function runChatMode(agent: any, config: any, userPrompt: string, db: any)
   const messagesForStream = [...history, userMessage];
   const stream = await agent.stream({ messages: messagesForStream }, config);
 
-  const responses: { type: string; message: string, tool_calls?: any[] }[] = [];
+  const responses: { type: string; message: string }[] = [];
   let lastAgentResponse = null;
   for await (const chunk of stream) {
     if ("agent" in chunk) {
@@ -225,7 +205,6 @@ async function runChatMode(agent: any, config: any, userPrompt: string, db: any)
       responses.push({
         type: "agent",
         message: agentMsg.content,
-        tool_calls: agentMsg.tool_calls,
       });
       lastAgentResponse = agentMsg.content;
     } else if ("tools" in chunk) {
@@ -246,28 +225,29 @@ async function runChatMode(agent: any, config: any, userPrompt: string, db: any)
   return responses;
 }
 
-// --------------------------------------
-// 4) Export a single "execute" handler
-// --------------------------------------
-export async function executeAgentHandler(options: {
+
+export async function runHederaAgentKit(options: {
   mode: "auto" | "chat";
   userPrompt?: string;
-  address: Address;
+  hederaAccountId: string;
+  hederaPrivateKey: string;
 }) {
   try {
-    const { mode, userPrompt = "", address = "" } = options;
-    // Initialize the agent
+    const { mode, userPrompt = "", hederaAccountId, hederaPrivateKey } = options;
+    console.log("Starting Agent...");
     const db = await initSqlJsDatabase();
-    const { agent, config } = await initializeAgent(address as `0x${string}`);
+    const { agent, config } = await initializeAgent(hederaAccountId, hederaPrivateKey);
 
-    if (mode === "auto") {
-      return await runAutonomousMode(agent, config);
+    if (mode === "chat") {
+      return await runChatMode(agent, config, userPrompt, db);
     } else {
-      // default to "chat" mode
       return await runChatMode(agent, config, userPrompt, db);
     }
-  } catch (error: any) {
-    console.error("Error in executeAgentHandler:", error?.message || error);
-    throw error;
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("Error:", error.message);
+    }
+    process.exit(1);
   }
 }
+

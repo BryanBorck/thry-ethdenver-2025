@@ -2,67 +2,71 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAccount } from "wagmi";
-import { Send } from "lucide-react";
+import { Send, Trash2, Mic, StopCircle } from "lucide-react";
 import { Particles } from "@/components/magicui/particles";
 import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
-import { executeAgentHandler, initSqlJsDatabase, loadMessages } from "../../services/ViemAgentService";
+import { executeAgentHandler, initSqlJsDatabase, loadMessages, savePersistedData, THREAD_ID } from "../../services/ViemAgentService";
 
 export default function ChatPage() {
   const [prompt, setPrompt] = useState("");
   const [responses, setResponses] = useState<
-    { type: string; message: string; timestamp: number }[]
+    { type: string; message: string; timestamp: number; tool_calls?: any[] }[]
   >([]);
   const [loading, setLoading] = useState(false);
   const { address } = useAccount();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [recording, setRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Decide if you want "chat" or "auto" mode:
   const mode = "chat"; // or "auto"
 
   useEffect(() => {
-    async function init() {
-      const db = await initSqlJsDatabase();
-      const historyRows = loadMessages(db, "Hedera Agent Kit!");
-      const newResponses = historyRows.map((row) => ({
-        type: row.type === "user" ? "user" : "agent",
-        message: row.content,
-        timestamp: row.timestamp,
-      }));
-      setResponses(newResponses);
+    if (address) {
+      async function init() {
+        const db = await initSqlJsDatabase();
+        const historyRows = loadMessages(db, THREAD_ID);
+        const newResponses = historyRows.map((row) => ({
+          type: row.type === "user" ? "user" : "agent",
+          message: row.content,
+          timestamp: row.timestamp,
+        }));
+        setResponses(newResponses);
+      }
+      init();
     }
-    init();
-  }, []);
+  }, [address]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [responses]);
 
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = async (overridePrompt?: string, e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!prompt.trim()) return;
+    const messageText = overridePrompt !== undefined ? overridePrompt : prompt;
+    if (!messageText.trim()) return;
 
     // Add user message to responses
     const userMessage = {
       type: "user",
-      message: prompt,
+      message: messageText,
       timestamp: Date.now(),
     };
     setResponses((prev) => [...prev, userMessage]);
 
-    const currentPrompt = prompt;
-    setPrompt("");
-    setLoading(true);
+    // Clear input if using the prompt state
+    if (!overridePrompt) setPrompt("");
 
-    console.log("@@@@@@@@", responses);
+    setLoading(true);
 
     try {
       const result = await executeAgentHandler({
         mode,
-        userPrompt: currentPrompt,
+        userPrompt: messageText,
         address: address as `0x${string}`,
       });
 
-      // Add timestamps to the responses
       const timestampedResults = result.map((res: any) => ({
         ...res,
         timestamp: Date.now(),
@@ -89,6 +93,67 @@ export default function ChatPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  // Function to call the OpenAI Whisper API and get transcription text
+  const handleTranscribe = async (audioBlob: Blob) => {
+    const formData = new FormData();
+    formData.append("file", audioBlob, "audio.webm");
+    formData.append("model", "whisper-1");
+
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+    const data = await response.json();
+    return data.text;
+  };
+
+  const handleRecord = async () => {
+    if (!recording) {
+      // Start recording
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Audio recording is not supported in your browser.");
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        audioChunksRef.current = [];
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+        recorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          try {
+            setLoading(true);
+            // Call the Whisper API to transcribe the audio
+            const transcriptionText = await handleTranscribe(audioBlob);
+            // Immediately send the transcribed text
+            setRecording(false);
+            await handleSend(transcriptionText);
+          } catch (err) {
+            console.error("Error during transcription:", err);
+          } finally {
+            setLoading(false);
+            setRecording(false);
+          }
+        };
+        recorder.start();
+        setMediaRecorder(recorder);
+        setRecording(true);
+      } catch (err) {
+        console.error("Error accessing microphone", err);
+      }
+    } else {
+      // Stop recording
+      mediaRecorder?.stop();
+    }
   };
 
   return (
@@ -106,18 +171,43 @@ export default function ChatPage() {
       {/* Main container */}
       <div className="relative z-10 bg-transparent bg-blue-100 max-w-6xl mx-auto w-full h-[90vh] px-4 flex flex-col">
         {/* Header */}
-        <div className="flex flex-col items-start justify-start p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-[1px] items-center justify-between">
-          <div className="flex flex-col items-start justify-start px-4 py-1">
-            <AnimatedShinyText>
-              <p className="text-xl font-bold">Hedera DeFi Agent</p>
-            </AnimatedShinyText>
-          </div>
+        <div className="flex items-center justify-between  p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-[1px] items-center justify-between">
           <div className="flex flex-col items-start justify-start">
-            <p className="text-xs text-[#ff2158] truncate px-4">
-              {address ? `${address}` : "Not connected"}
-            </p>
+            <div className="flex flex-col items-start justify-start px-4 py-1">
+              <AnimatedShinyText>
+                <p className="text-xl font-bold">Hedera DeFi Agent</p>
+              </AnimatedShinyText>
+            </div>
+            <div className="flex flex-col items-start justify-start">
+              <p className="text-xs text-[#ff2158] truncate px-4">
+                {address ? `${address}` : "Not connected"}
+              </p>
+            </div>
           </div>
-        </div>
+          {address && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const db = await initSqlJsDatabase();
+                  const stmt = db.prepare(
+                    "DELETE FROM messages WHERE thread_id = :threadId;"
+                  );
+                  stmt.bind({ ":threadId": THREAD_ID });
+                  stmt.step();
+                  stmt.free();
+                  await savePersistedData(new Uint8Array(db.export()));
+                  setResponses([]);
+                } catch (error) {
+                  console.error("Error clearing chat:", error);
+                }
+              }}
+              className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 cursor-pointer"
+            >
+              <Trash2 size={20} />
+            </button>
+          )}
+        </div >
 
         {/* Messages list */}
         <div className="flex-1 overflow-y-auto px-4 py-8 space-y-4">
@@ -128,47 +218,172 @@ export default function ChatPage() {
               </p>
             </div>
           ) : (
-            responses.map((res, idx) => (
-              <div
-                key={idx}
-                className={`max-w-md transition-all duration-500 transform-gpu ${res.type === "user" ? "ml-auto" : "mr-auto"
-                  }`}
-                style={{ animation: "fadeIn 0.4s ease-in-out" }}
-              >
-                <div
-                  className={`max-w-md ${res.type === "user"
-                    ? "ml-auto bg-gray-100/70"
-                    : res.type === "error"
-                      ? "mr-auto bg-red-100/70"
-                      : "mr-auto bg-background/70"
-                    } backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
-                  style={{ animation: "fadeInUp 0.5s forwards" }}
-                >
-                  <p>{res.message}</p>
-                  <p className="text-right text-xs opacity-70 mt-1">
-                    {formatTime(res.timestamp)}
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
+            responses.map((res, idx) => {
+              // Set the alignment based on whether it's a user message or not.
+              const alignment = res.type === "user" ? "ml-auto" : "mr-auto";
+              // Base container for the bubble
+              const baseContainer = `max-w-md transition-all duration-500 transform-gpu ${alignment}`;
+              let bubbleContent = null;
 
-          {/* Loading indicator */}
-          {loading && (
-            <div className="flex flex-col items-start justify-start">
-              <AnimatedShinyText className="py-1 transition ease-out hover:text-neutral-700 hover:duration-500">
-                <span className="text-gray-400 font-light">Thinking...</span>
-              </AnimatedShinyText>
-            </div>
+              if (res.type === "user") {
+                // User messages keep the same styling.
+                bubbleContent = (
+                  <div
+                    className="max-w-md ml-auto bg-gray-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                    style={{ animation: "fadeInUp 0.5s forwards" }}
+                  >
+                    <p>
+                      <strong>User</strong>
+                    </p>
+                    <div className="mt-2" />
+                    <p>{res.message}</p>
+                    <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
+                  </div>
+                );
+              } else if (res.type === "agent") {
+                // For agent type, render message if it exists...
+                if (res.message) {
+                  bubbleContent = (
+
+                    <div
+                      className="max-w-md mr-auto bg-background/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                      style={{ animation: "fadeInUp 0.5s forwards" }}
+                    >
+                      <p>
+                        <strong>Agent</strong>
+                      </p>
+                      <div className="mt-2" />
+                      <p>{res.message}</p>
+                      <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
+                    </div>
+                  );
+                }
+                // ...otherwise check for tool_calls.
+                else if (res.tool_calls) {
+                  bubbleContent = (
+                    <div
+                      className="max-w-md mr-auto bg-indigo-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                      style={{ animation: "fadeInUp 0.5s forwards" }}
+                    >
+                      {Object.entries(res.tool_calls).map(([key, tool_call], index) => (
+                        <div key={index} className="mb-2">
+                          <p>
+                            <strong>Agent</strong> (a tool call was made)
+                          </p>
+                          {res.message && (
+                            <>
+                              <div className="mt-2" />
+                              <p>{res.message}</p>
+                            </>
+                          )}
+                          <div className="mt-2" />
+                          <p>
+                            Tool Name: <span className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">{tool_call.name}</span>
+                          </p>
+                          <div className="mt-2" />
+                          <p>
+                            Tool Args:
+                          </p>
+                          <div className="mt-1" />
+                          <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+                            {(() => {
+                              let args = tool_call.args;
+                              try {
+                                if (typeof args === "string") {
+                                  args = JSON.parse(args);
+                                }
+                              } catch (e) {
+                                // Parsing failed; keep args as is.
+                              }
+                              if (args && typeof args.input === "string") {
+                                try {
+                                  args.input = JSON.parse(args.input);
+                                } catch (e) {
+                                  // Parsing failed; leave input as-is.
+                                }
+                              }
+                              return JSON.stringify(args, null, 2);
+                            })()}
+                          </pre>
+                        </div>
+                      ))}
+                      <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
+                    </div>
+                  );
+                }
+              } else if (res.type === "tools") {
+                let parsedMessage;
+                try {
+                  parsedMessage = JSON.parse(res.message);
+                } catch (error) {
+                  // Fallback if JSON parsing fails
+                  parsedMessage = res.message;
+                }
+
+                // Choose background based on status.
+                const bgClass =
+                  parsedMessage.status === "error"
+                    ? "bg-red-100/70"
+                    : parsedMessage.status === "success"
+                      ? "bg-green-100/70"
+                      : "bg-gray-100/70";
+
+                bubbleContent = (
+                  <div
+                    className={`max-w-md mr-auto ${bgClass} backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
+                    style={{ animation: "fadeInUp 0.5s forwards" }}
+                  >
+                    <p>
+                      <strong>Tool</strong>
+                    </p>
+                    <div className="mt-2" />
+                    <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+                      {(() => {
+                        return JSON.stringify(parsedMessage, null, 2);
+                      })()}
+                    </pre>
+                    <p className="text-right text-xs opacity-70 mt-1">
+                      {formatTime(res.timestamp)}
+                    </p>
+                  </div>
+                )
+              } else if (res.type === "error") {
+                // Fallback for any error type.
+                bubbleContent = (
+                  <div
+                    className="max-w-md mr-auto bg-red-100/70 backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn"
+                    style={{ animation: "fadeInUp 0.5s forwards" }}
+                  >
+                    <p>{res.message}</p>
+                    <p className="text-right text-xs opacity-70 mt-1">{formatTime(res.timestamp)}</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={idx} className={baseContainer} style={{ animation: "fadeIn 0.4s ease-in-out" }}>
+                  {bubbleContent}
+                </div>
+              );
+            })
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Input bar */}
         <form
-          onSubmit={handleSend}
+          onSubmit={(e) => handleSend(undefined, e)}
           className="px-4 py-2 border rounded-lg flex space-x-4 bg-white"
         >
+          <button
+            type="button"
+            onClick={handleRecord}
+            // Only disable if loading and not currently recording
+            disabled={loading && !recording}
+            className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 cursor-pointer"
+          >
+            {recording ? <StopCircle size={24} /> : <Mic size={24} />}
+          </button>
+
           <input
             type="text"
             className="flex-1 outline-none"
@@ -186,6 +401,6 @@ export default function ChatPage() {
           </button>
         </form>
       </div>
-    </div>
+    </div >
   );
 }

@@ -205,7 +205,6 @@ Example usage:
 
   protected async _call(input: string): Promise<string> {
     try {
-      console.log(input);
       const parsedInput = JSON.parse(input);
 
       await this.viemAgentKit.transferHbar(

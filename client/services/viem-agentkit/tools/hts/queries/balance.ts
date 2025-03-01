@@ -1,4 +1,4 @@
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, formatEther } from "viem";
 import type {
   WalletClient as ViemWalletClient,
   PublicClient as ViemPublicClient,
@@ -24,7 +24,10 @@ export const get_hbar_balance = async (
   const balanceBigInt: bigint = await publicClient.getBalance({ address });
 
   // Convert the balance from tinybars to HBAR (assuming 1 HBAR = 100,000,000 tinybars)
-  const balance = Number(balanceBigInt) / 1e8;
+  // const balance = Number(balanceBigInt) / 1e8;
 
-  return balance;
+  // When using Viem we need to use the formatEther function to convert the balance to HBAR
+  const balance = formatEther(balanceBigInt);
+
+  return Number(balance);
 };
