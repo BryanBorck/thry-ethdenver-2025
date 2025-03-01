@@ -1,12 +1,28 @@
 "use client";
 
+import type React from "react";
+
 import { useState, useEffect, useRef } from "react";
 import { useAccount } from "wagmi";
 import { Send } from "lucide-react";
 import { Particles } from "@/components/magicui/particles";
 import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
 import { executeAgentHandler } from "../../services/HederaAgentService";
-import { initSqlJsDatabase, loadMessages } from "../../services/hedera-agentkit/tests";
+import {
+  initSqlJsDatabase,
+  loadMessages,
+} from "../../services/hedera-agentkit/tests";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function ChatPage() {
   const [prompt, setPrompt] = useState("");
@@ -20,15 +36,26 @@ export default function ChatPage() {
   const [hederaPrivateKey, setHederaPrivateKey] = useState("");
   const [tempHederaAccountId, setTempHederaAccountId] = useState("");
   const [tempHederaPrivateKey, setTempHederaPrivateKey] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   // Decide if you want "chat" or "auto" mode:
   const mode = "chat"; // or "auto"
+
+  // Check if credentials are missing and open dialog
+  useEffect(() => {
+    if (!hederaAccountId || !hederaPrivateKey) {
+      setDialogOpen(true);
+    } else {
+      setDialogOpen(false);
+    }
+  }, [hederaAccountId, hederaPrivateKey]);
 
   // Modal submission handler
   const handleModalSubmit = () => {
     if (tempHederaAccountId.trim() && tempHederaPrivateKey.trim()) {
       setHederaAccountId(tempHederaAccountId);
       setHederaPrivateKey(tempHederaPrivateKey);
+      setDialogOpen(false);
     } else {
       alert("Both fields are required!");
     }
@@ -50,7 +77,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [responses]);
+  }, []); // Removed unnecessary dependency: responses
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -107,39 +134,57 @@ export default function ChatPage() {
 
   return (
     <>
-      {/* Modal: rendered if either credential is missing */}
-      {(!hederaAccountId || !hederaPrivateKey) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded shadow-lg w-80">
-            <h2 className="text-lg font-bold mb-4">Enter Hedera Credentials</h2>
-            <div className="space-y-4">
-              <input
+      {/* Credentials Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enter Hedera Credentials</DialogTitle>
+            <DialogDescription>
+              Please provide your Hedera account ID and private key to continue.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="accountId" className="text-right">
+                Account ID
+              </Label>
+              <Input
+                id="accountId"
                 type="text"
-                placeholder="Hedera Account ID"
+                placeholder="0.0.12345"
                 value={tempHederaAccountId}
-                onChange={(e) => setTempHederaAccountId(e.target.value)}
-                className="border p-2 w-full"
+                onChange={(e: any) => setTempHederaAccountId(e.target.value)}
+                className="col-span-3"
               />
-              <input
-                type="text"
-                placeholder="Hedera Private Key"
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="privateKey" className="text-right">
+                Private Key
+              </Label>
+              <Input
+                id="privateKey"
+                type="password"
+                placeholder="Your private key"
                 value={tempHederaPrivateKey}
                 onChange={(e) => setTempHederaPrivateKey(e.target.value)}
-                className="border p-2 w-full"
+                className="col-span-3"
               />
-              <button
-                onClick={handleModalSubmit}
-                className="bg-blue-500 text-white p-2 rounded w-full"
-              >
-                Submit
-              </button>
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button type="submit" onClick={handleModalSubmit}>
+              Submit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Main page content – optionally disabled with pointer-events if modal is active */}
-      <div className={`relative h-screen pt-14 w-full ${(!hederaAccountId || !hederaPrivateKey) ? 'pointer-events-none opacity-50' : ''}`}>
+      <div
+        className={`relative h-screen pt-14 w-full ${
+          dialogOpen ? "pointer-events-none opacity-50" : ""
+        }`}
+      >
         {/* Particles background */}
         <Particles
           className="absolute inset-0 z-0 pointer-events-none w-full"
@@ -153,10 +198,10 @@ export default function ChatPage() {
         {/* Main container */}
         <div className="relative z-10 bg-transparent bg-blue-100 max-w-6xl mx-auto w-full h-[90vh] px-4 flex flex-col">
           {/* Header */}
-          <div className="flex flex-col items-start justify-start p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-[1px] items-center justify-between">
+          <div className="flex flex-col border border-[#ff2158] items-start justify-start p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-[1px] items-center justify-between">
             <div className="flex flex-col items-start justify-start px-4 py-1">
               <AnimatedShinyText>
-                <p className="text-xl font-bold">Hedera DeFi Agent</p>
+                <p className="text-xl font-bold">HederaKit Agent</p>
               </AnimatedShinyText>
             </div>
             <div className="flex flex-col items-start justify-start">
@@ -178,17 +223,19 @@ export default function ChatPage() {
               responses.map((res, idx) => (
                 <div
                   key={idx}
-                  className={`max-w-md transition-all duration-500 transform-gpu ${res.type === "user" ? "ml-auto" : "mr-auto"
-                    }`}
+                  className={`max-w-md transition-all duration-500 transform-gpu ${
+                    res.type === "user" ? "ml-auto" : "mr-auto"
+                  }`}
                   style={{ animation: "fadeIn 0.4s ease-in-out" }}
                 >
                   <div
-                    className={`max-w-md ${res.type === "user"
-                      ? "ml-auto bg-gray-100/70"
-                      : res.type === "error"
+                    className={`max-w-md ${
+                      res.type === "user"
+                        ? "ml-auto bg-gray-100/70"
+                        : res.type === "error"
                         ? "mr-auto bg-red-100/70"
                         : "mr-auto bg-background/70"
-                      } backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
+                    } backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
                     style={{ animation: "fadeInUp 0.5s forwards" }}
                   >
                     <p>{res.message}</p>
@@ -214,23 +261,24 @@ export default function ChatPage() {
           {/* Input bar */}
           <form
             onSubmit={handleSend}
-            className="px-4 py-2 border rounded-lg flex space-x-4 bg-white"
+            className="px-4 py-2 border border-[#ff2158] rounded-lg flex space-x-4 bg-white"
           >
-            <input
+            <Input
               type="text"
-              className="flex-1 outline-none"
+              className="flex-1"
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e: any) => setPrompt(e.target.value)}
               placeholder="Type your message..."
               disabled={loading}
             />
-            <button
+            <Button
               type="submit"
+              variant="outline"
               className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 disabled:opacity-50"
               disabled={loading || !prompt.trim()}
             >
               <Send size={24} />
-            </button>
+            </Button>
           </form>
         </div>
       </div>

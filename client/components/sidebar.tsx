@@ -5,7 +5,12 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { MessageSquare, ChartColumnIncreasing, Info } from "lucide-react";
+import {
+  MessageSquare,
+  ChartColumnIncreasing,
+  Info,
+  CodeXmlIcon,
+} from "lucide-react";
 import { HyperText } from "./magicui/hyper-text";
 
 export function AppSidebar() {
@@ -15,6 +20,7 @@ export function AppSidebar() {
   const menuItems = [
     { label: "Chat", href: "/chat", icon: MessageSquare },
     { label: "Portfolio", href: "/portfolio", icon: ChartColumnIncreasing },
+    { label: "HederaKit", href: "/chat-hedera", icon: CodeXmlIcon },
     // { label: "About", href: "/about", icon: Info },
   ];
 
