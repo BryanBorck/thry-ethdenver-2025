@@ -189,12 +189,12 @@ export class HederaTransferHbarTool extends Tool {
 
   description = `Transfer HBAR to an account on Hedera
 Inputs ( input is a JSON string ):
-toAccountId: string, the account ID to transfer to e.g. 0x1234567890abcdef1234567890abcdef12345678,
+toAccount: string, the account address to transfer to e.g. 0x1234567890abcdef1234567890abcdef12345678,
 amount: number, the amount of HBAR to transfer e.g. 100,
 Example usage:
 1. Transfer 100 HBAR to account 0x1234567890abcdef1234567890abcdef12345678:
   '{
-    "toAccountId": "0x1234567890abcdef1234567890abcdef12345678",
+    "toAccount": "0x1234567890abcdef1234567890abcdef12345678",
     "amount": 100
   }'
 `;
