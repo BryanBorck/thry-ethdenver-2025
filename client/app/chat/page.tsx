@@ -5,7 +5,7 @@ import { useAccount } from "wagmi";
 import { Send } from "lucide-react";
 import { Particles } from "@/components/magicui/particles";
 import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
-import { executeAgentHandler } from "../../services/ViemAgentService";
+import { executeAgentHandler, initSqlJsDatabase, loadMessages } from "../../services/ViemAgentService";
 
 export default function ChatPage() {
   const [prompt, setPrompt] = useState("");
@@ -18,6 +18,20 @@ export default function ChatPage() {
 
   // Decide if you want "chat" or "auto" mode:
   const mode = "chat"; // or "auto"
+
+  useEffect(() => {
+    async function init() {
+      const db = await initSqlJsDatabase();
+      const historyRows = loadMessages(db, "Hedera Agent Kit!");
+      const newResponses = historyRows.map((row) => ({
+        type: row.type === "user" ? "user" : "agent",
+        message: row.content,
+        timestamp: row.timestamp,
+      }));
+      setResponses(newResponses);
+    }
+    init();
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -117,19 +131,17 @@ export default function ChatPage() {
             responses.map((res, idx) => (
               <div
                 key={idx}
-                className={`max-w-md transition-all duration-500 transform-gpu ${
-                  res.type === "user" ? "ml-auto" : "mr-auto"
-                }`}
+                className={`max-w-md transition-all duration-500 transform-gpu ${res.type === "user" ? "ml-auto" : "mr-auto"
+                  }`}
                 style={{ animation: "fadeIn 0.4s ease-in-out" }}
               >
                 <div
-                  className={`max-w-md ${
-                    res.type === "user"
-                      ? "ml-auto bg-gray-100/70"
-                      : res.type === "error"
+                  className={`max-w-md ${res.type === "user"
+                    ? "ml-auto bg-gray-100/70"
+                    : res.type === "error"
                       ? "mr-auto bg-red-100/70"
                       : "mr-auto bg-background/70"
-                  } backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
+                    } backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
                   style={{ animation: "fadeInUp 0.5s forwards" }}
                 >
                   <p>{res.message}</p>
