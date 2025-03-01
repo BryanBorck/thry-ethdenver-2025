@@ -33,7 +33,7 @@ export default function RootLayout({
       >
         <AppProviders>
           <Header />
-          <main className="h-full overflow-y-auto pt-12">{children}</main>
+          <main className="h-screen overflow-y-auto">{children}</main>
           <Toaster />
         </AppProviders>
       </body>
