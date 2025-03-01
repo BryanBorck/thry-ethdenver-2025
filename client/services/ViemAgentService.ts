@@ -15,6 +15,7 @@ import { createViemTools } from "./viem-agentkit/langchain";
 import { ViemWalletProvider } from "./viem-agentkit/wallet-providers/viemWalletProvider";
 import { ViemWalletProviderGasConfig } from "./viem-agentkit/wallet-providers/viemWalletProvider";
 
+export const THREAD_ID = "Viem Agent Kit!";
 
 // --------------------------------------
 // 0) Initialize SQL.js database
@@ -55,7 +56,7 @@ async function loadPersistedData() {
   });
 }
 
-async function savePersistedData(data: Uint8Array) {
+export async function savePersistedData(data: Uint8Array) {
   const idb: any = await openIDB();
   return new Promise<void>((resolve, reject) => {
     const transaction = idb.transaction("db", "readwrite");

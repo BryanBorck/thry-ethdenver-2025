@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAccount } from "wagmi";
-import { Send } from "lucide-react";
+import { Send, Trash2 } from "lucide-react";
 import { Particles } from "@/components/magicui/particles";
 import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
-import { executeAgentHandler, initSqlJsDatabase, loadMessages } from "../../services/ViemAgentService";
+import { executeAgentHandler, initSqlJsDatabase, loadMessages, savePersistedData, THREAD_ID } from "../../services/ViemAgentService";
 
 export default function ChatPage() {
   const [prompt, setPrompt] = useState("");
@@ -20,18 +20,20 @@ export default function ChatPage() {
   const mode = "chat"; // or "auto"
 
   useEffect(() => {
-    async function init() {
-      const db = await initSqlJsDatabase();
-      const historyRows = loadMessages(db, "Viem Agent Kit!");
-      const newResponses = historyRows.map((row) => ({
-        type: row.type === "user" ? "user" : "agent",
-        message: row.content,
-        timestamp: row.timestamp,
-      }));
-      setResponses(newResponses);
+    if (address) {
+      async function init() {
+        const db = await initSqlJsDatabase();
+        const historyRows = loadMessages(db, THREAD_ID);
+        const newResponses = historyRows.map((row) => ({
+          type: row.type === "user" ? "user" : "agent",
+          message: row.content,
+          timestamp: row.timestamp,
+        }));
+        setResponses(newResponses);
+      }
+      init();
     }
-    init();
-  }, []);
+  }, [address]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -104,18 +106,43 @@ export default function ChatPage() {
       {/* Main container */}
       <div className="relative z-10 bg-transparent bg-blue-100 max-w-6xl mx-auto w-full h-[90vh] px-4 flex flex-col">
         {/* Header */}
-        <div className="flex flex-col items-start justify-start p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-[1px] items-center justify-between">
-          <div className="flex flex-col items-start justify-start px-4 py-1">
-            <AnimatedShinyText>
-              <p className="text-xl font-bold">Hedera DeFi Agent</p>
-            </AnimatedShinyText>
-          </div>
+        <div className="flex items-center justify-between  p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-[1px] items-center justify-between">
           <div className="flex flex-col items-start justify-start">
-            <p className="text-xs text-[#ff2158] truncate px-4">
-              {address ? `${address}` : "Not connected"}
-            </p>
+            <div className="flex flex-col items-start justify-start px-4 py-1">
+              <AnimatedShinyText>
+                <p className="text-xl font-bold">Hedera DeFi Agent</p>
+              </AnimatedShinyText>
+            </div>
+            <div className="flex flex-col items-start justify-start">
+              <p className="text-xs text-[#ff2158] truncate px-4">
+                {address ? `${address}` : "Not connected"}
+              </p>
+            </div>
           </div>
-        </div>
+          {address && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const db = await initSqlJsDatabase();
+                  const stmt = db.prepare(
+                    "DELETE FROM messages WHERE thread_id = :threadId;"
+                  );
+                  stmt.bind({ ":threadId": THREAD_ID });
+                  stmt.step();
+                  stmt.free();
+                  await savePersistedData(new Uint8Array(db.export()));
+                  setResponses([]);
+                } catch (error) {
+                  console.error("Error clearing chat:", error);
+                }
+              }}
+              className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 cursor-pointer"
+            >
+              <Trash2 size={20} />
+            </button>
+          )}
+        </div >
 
         {/* Messages list */}
         <div className="flex-1 overflow-y-auto px-4 py-8 space-y-4">
@@ -292,7 +319,7 @@ export default function ChatPage() {
           />
           <button
             type="submit"
-            className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 disabled:opacity-50"
+            className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 disabled:opacity-50 cursor-pointer"
             disabled={loading || !prompt.trim()}
           >
             <Send size={24} />
