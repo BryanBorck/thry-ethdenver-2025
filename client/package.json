@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@hashgraph/sdk": "^2.59.0",
     "@langchain/core": "^0.3.26",
     "@langchain/langgraph": "^0.2.34",
     "@langchain/openai": "^0.3.16",

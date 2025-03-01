@@ -22,7 +22,7 @@ export default function ChatPage() {
   useEffect(() => {
     async function init() {
       const db = await initSqlJsDatabase();
-      const historyRows = loadMessages(db, "Hedera Agent Kit!");
+      const historyRows = loadMessages(db, "Viem Agent Kit!");
       const newResponses = historyRows.map((row) => ({
         type: row.type === "user" ? "user" : "agent",
         message: row.content,
@@ -52,8 +52,6 @@ export default function ChatPage() {
     const currentPrompt = prompt;
     setPrompt("");
     setLoading(true);
-
-    console.log("@@@@@@@@", responses);
 
     try {
       const result = await executeAgentHandler({

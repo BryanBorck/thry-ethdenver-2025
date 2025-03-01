@@ -1,0 +1,239 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { useAccount } from "wagmi";
+import { Send } from "lucide-react";
+import { Particles } from "@/components/magicui/particles";
+import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
+import { executeAgentHandler } from "../../services/HederaAgentService";
+import { initSqlJsDatabase, loadMessages } from "../../services/hedera-agentkit/tests";
+
+export default function ChatPage() {
+  const [prompt, setPrompt] = useState("");
+  const [responses, setResponses] = useState<
+    { type: string; message: string; timestamp: number }[]
+  >([]);
+  const [loading, setLoading] = useState(false);
+  const { address } = useAccount();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [hederaAccountId, setHederaAccountId] = useState("");
+  const [hederaPrivateKey, setHederaPrivateKey] = useState("");
+  const [tempHederaAccountId, setTempHederaAccountId] = useState("");
+  const [tempHederaPrivateKey, setTempHederaPrivateKey] = useState("");
+
+  // Decide if you want "chat" or "auto" mode:
+  const mode = "chat"; // or "auto"
+
+  // Modal submission handler
+  const handleModalSubmit = () => {
+    if (tempHederaAccountId.trim() && tempHederaPrivateKey.trim()) {
+      setHederaAccountId(tempHederaAccountId);
+      setHederaPrivateKey(tempHederaPrivateKey);
+    } else {
+      alert("Both fields are required!");
+    }
+  };
+
+  useEffect(() => {
+    async function init() {
+      const db = await initSqlJsDatabase();
+      const historyRows = loadMessages(db, "Hedera Agent Kit!");
+      const newResponses = historyRows.map((row) => ({
+        type: row.type === "user" ? "user" : "agent",
+        message: row.content,
+        timestamp: row.timestamp,
+      }));
+      setResponses(newResponses);
+    }
+    init();
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [responses]);
+
+  const handleSend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!prompt.trim()) return;
+
+    // Add user message to responses
+    const userMessage = {
+      type: "user",
+      message: prompt,
+      timestamp: Date.now(),
+    };
+    setResponses((prev) => [...prev, userMessage]);
+
+    const currentPrompt = prompt;
+    setPrompt("");
+    setLoading(true);
+
+    try {
+      const result = await executeAgentHandler({
+        mode,
+        userPrompt: currentPrompt,
+        hederaAccountId,
+        hederaPrivateKey,
+      });
+
+      // Add timestamps to the responses
+      const timestampedResults = result.map((res: any) => ({
+        ...res,
+        timestamp: Date.now(),
+      }));
+
+      setResponses((prev) => [...prev, ...timestampedResults]);
+    } catch (err: any) {
+      console.error("Error executing agent:", err);
+      setResponses((prev) => [
+        ...prev,
+        {
+          type: "error",
+          message: String(err?.message || err),
+          timestamp: Date.now(),
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <>
+      {/* Modal: rendered if either credential is missing */}
+      {(!hederaAccountId || !hederaPrivateKey) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded shadow-lg w-80">
+            <h2 className="text-lg font-bold mb-4">Enter Hedera Credentials</h2>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Hedera Account ID"
+                value={tempHederaAccountId}
+                onChange={(e) => setTempHederaAccountId(e.target.value)}
+                className="border p-2 w-full"
+              />
+              <input
+                type="text"
+                placeholder="Hedera Private Key"
+                value={tempHederaPrivateKey}
+                onChange={(e) => setTempHederaPrivateKey(e.target.value)}
+                className="border p-2 w-full"
+              />
+              <button
+                onClick={handleModalSubmit}
+                className="bg-blue-500 text-white p-2 rounded w-full"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main page content – optionally disabled with pointer-events if modal is active */}
+      <div className={`relative h-screen pt-14 w-full ${(!hederaAccountId || !hederaPrivateKey) ? 'pointer-events-none opacity-50' : ''}`}>
+        {/* Particles background */}
+        <Particles
+          className="absolute inset-0 z-0 pointer-events-none w-full"
+          quantity={150}
+          ease={80}
+          size={0.6}
+          color={"#ff2158"}
+          refresh
+        />
+
+        {/* Main container */}
+        <div className="relative z-10 bg-transparent bg-blue-100 max-w-6xl mx-auto w-full h-[90vh] px-4 flex flex-col">
+          {/* Header */}
+          <div className="flex flex-col items-start justify-start p-4 shadow-lg rounded-lg flex bg-background/30 backdrop-blur-[1px] items-center justify-between">
+            <div className="flex flex-col items-start justify-start px-4 py-1">
+              <AnimatedShinyText>
+                <p className="text-xl font-bold">Hedera DeFi Agent</p>
+              </AnimatedShinyText>
+            </div>
+            <div className="flex flex-col items-start justify-start">
+              <p className="text-xs text-[#ff2158] truncate px-4">
+                {address ? `${address}` : "Not connected"}
+              </p>
+            </div>
+          </div>
+
+          {/* Messages list */}
+          <div className="flex-1 overflow-y-auto px-4 py-8 space-y-4">
+            {responses.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-muted-foreground text-center">
+                  Start a conversation by sending a message below.
+                </p>
+              </div>
+            ) : (
+              responses.map((res, idx) => (
+                <div
+                  key={idx}
+                  className={`max-w-md transition-all duration-500 transform-gpu ${res.type === "user" ? "ml-auto" : "mr-auto"
+                    }`}
+                  style={{ animation: "fadeIn 0.4s ease-in-out" }}
+                >
+                  <div
+                    className={`max-w-md ${res.type === "user"
+                      ? "ml-auto bg-gray-100/70"
+                      : res.type === "error"
+                        ? "mr-auto bg-red-100/70"
+                        : "mr-auto bg-background/70"
+                      } backdrop-blur-[2px] shadow-xl py-3 px-6 rounded-sm animate-fadeIn`}
+                    style={{ animation: "fadeInUp 0.5s forwards" }}
+                  >
+                    <p>{res.message}</p>
+                    <p className="text-right text-xs opacity-70 mt-1">
+                      {formatTime(res.timestamp)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+
+            {/* Loading indicator */}
+            {loading && (
+              <div className="flex flex-col items-start justify-start">
+                <AnimatedShinyText className="py-1 transition ease-out hover:text-neutral-700 hover:duration-500">
+                  <span className="text-gray-400 font-light">Thinking...</span>
+                </AnimatedShinyText>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input bar */}
+          <form
+            onSubmit={handleSend}
+            className="px-4 py-2 border rounded-lg flex space-x-4 bg-white"
+          >
+            <input
+              type="text"
+              className="flex-1 outline-none"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Type your message..."
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              className="p-2 border border-[#ff2158] text-[#ff2158] rounded-md aspect-square hover:text-primary hover:border-primary hover:bg-gray-100 transition-all ease-in-out duration-500 disabled:opacity-50"
+              disabled={loading || !prompt.trim()}
+            >
+              <Send size={24} />
+            </button>
+          </form>
+        </div>
+      </div>
+    </>
+  );
+}

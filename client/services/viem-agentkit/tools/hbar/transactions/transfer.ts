@@ -24,7 +24,5 @@ export const transfer_hbar = async (
   // @ts-ignore
   const hash = await client.sendTransaction({ to, value });
 
-  console.log(`Transaction hash: ${hash}`);
-
   return "SUCCESS: Transaction hash: " + hash;
 };
