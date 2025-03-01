@@ -178,6 +178,12 @@ export default function ChatPage() {
                           <p>
                             <strong>Agent</strong> (a tool call was made)
                           </p>
+                          {res.message && (
+                            <>
+                              <div className="mt-2" />
+                              <p>{res.message}</p>
+                            </>
+                          )}
                           <div className="mt-2" />
                           <p>
                             Tool Name: <span className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">{tool_call.name}</span>
@@ -240,7 +246,9 @@ export default function ChatPage() {
                     </p>
                     <div className="mt-2" />
                     <pre className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
-                      {parsedMessage.message}
+                      {(() => {
+                        return JSON.stringify(parsedMessage, null, 2);
+                      })()}
                     </pre>
                     <p className="text-right text-xs opacity-70 mt-1">
                       {formatTime(res.timestamp)}
